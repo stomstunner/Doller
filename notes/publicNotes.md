@@ -8,3 +8,7 @@
 
 --- 
 ### after making the empty folders we are unable to track it becuse it was empty so we make a `.gitkeep` file inside the empty folder
+
+---
+
+## now we make the folders in the
