@@ -33,3 +33,5 @@
 `npm i --save-dev nodemon`
 
 ## now we just have to go to the package,json file aur usne ander script me dev key me hamara nodemon and apne file ka naam aur source dena hai jisse jab bhi npm run dev command chayenge then hamra nodemon ki help se woh index.js file baar baar reload hoga
+
+---
