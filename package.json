@@ -1,0 +1,20 @@
+{
+  "name": "doller",
+  "version": "1.0.0",
+  "description": "this is a full stack application for youtube clone ",
+  "keywords": [
+    "youtube",
+    "video",
+    "twitter",
+    "comments",
+    "model",
+    "doller"
+  ],
+  "license": "ISC",
+  "author": "ujjwal",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
