@@ -1,0 +1,1 @@
+## this is a full stack application on video sharing app 
