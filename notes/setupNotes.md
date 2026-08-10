@@ -47,3 +47,14 @@ jisse hamara har baar code ko woh watch karta hai aur auto reload karte hai
 
 ## make a file .prettierrc
 for configuration of prettier
+
+---
+so in the environment varibale we have to write our username and password and remove the ending slash
+
+---
+
+after that we name of the database 
+- go to the src 
+---
+
+now we install the mongoose dotenv and express
