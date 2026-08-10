@@ -9,3 +9,6 @@ utils = jisme ham kuch utilities rakhnge (like function jaisse file upload ek ut
 
 # for creating 
 ` mkdir controllers,db,middlewares,models,routes,utils`
+
+---
+in the src we go in the constants and name the data base name
