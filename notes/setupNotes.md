@@ -58,3 +58,24 @@ after that we name of the database
 ---
 
 now we install the mongoose dotenv and express
+
+----
+
+now we install the cookie-parser and cors
+
+---
+
+so if we talk about the middlewares 
+## middlewares
+It is a kind of function between the url and request response 
+before sending the response we check ki user logged in hai ya nahi ya user admin toh nahi hai someting like this 
+
+![alt text](image.png)
+
+- also there is 4 elements in the request response 1st one is error that just send the error and 2nd one is request = when the user request for some service from the server and the 3ed one is the response = server send the data to the user and the last one is the next = it is just a flag ki hamara middle wale complete ho gaya hai toh next middleware pe jane ke liye hai usko use karte hai bina next ke mark hue ham 1 middleware se dusre middleware pe nahi jaa sakte hai 
+
+---
+
+## so we will talk to the database many time and every time we have to write the async await and try catch method for that that is a lengthy process because we will talk to the database many times 
+
+- thats why we will make the utilities in the utilities where we just give the arguments and it will gives us a response 
