@@ -53,4 +53,44 @@ const userSchema = new Schema(
     }
 )
 
+// so just like the plugin we use the `pre` hook ki jaisse hi hamar data save hone hi wala ho tab tum ye operation perform karna 
+
+// iska matlab hai ki jaisse hi ham userSchema se save karne wale ho usse pahle hai ye task perform kare
+
+// and the thing is ki ham yaha pe ek callback function dete toh hai but callback function me hamare pass this ka acces nahi hota hai iske liye ham fucntion ka use karte hai == async fucntion ka use karte hai kyuki ham password decrypt karne me thoda time lag sakta hai 
+userSchema.pre("save", async function(next){
+    // also we will check ki hamara password tabhi bycrypt hoga jab hamara password modified hoga na ki har baar 
+    if(!this.isModified("password")){
+        return next();
+    }
+    // iska matlab hua ki hamre password ko bcrypt kar do hash of 10 times 
+    this.password = bcrypt.hash(this.password, 10)
+    next()
+} )
+
+
+// now we will check ki hamara password correct hai ki nahi 
+// usko check karne ke liye hame dekhna parega ki hamara jo password hai woh toh encrypted hai and usko hame decrypt kar ke check karna parega 
+
+// so we have the feature ki ham userSchema ka use kar ke khud ka method bana sakte hai then usko check kar sakte hai ki woh chal raha hai ya nahi 
+
+userSchema.methods.isPasswordCorrect = async function(password){
+    return await bcrypt.compare(password, this.password)
+
+    // so the bcrypt.compare takes the two things first one is the string that is comes from the user and the 2nd one is the encrypted password jo ki hamare pass yaha this se aayega
+}
+
+
+// lets create the access token generator 
+
+userSchema.methods.generateAccessToken = function(){
+    // in the jwt we have the sign method jo ki genrate karta hai tokens ko jwt token isko ham apne databse se id username and other ddata dete hai toh ye genrate karta hai 
+}
+
+// and we make the generate refress token 
+
+userSchema.methods.generateRefressToken = function(){
+
+}
+
 export const User = mongoose.model("User", userSchema)
