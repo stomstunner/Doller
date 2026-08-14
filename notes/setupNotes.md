@@ -79,3 +79,19 @@ before sending the response we check ki user logged in hai ya nahi ya user admin
 ## so we will talk to the database many time and every time we have to write the async await and try catch method for that that is a lengthy process because we will talk to the database many times 
 
 - thats why we will make the utilities in the utilities where we just give the arguments and it will gives us a response 
+
+---
+
+## after making the utils  where we make the api response file for centralized and standerdized response and standerdized api error and asynce handler that jsut takes the fucntion gies us a response for taking to the database
+
+--- 
+
+now we make the models where store the realtionship with the videos 
+
+--- 
+
+after making the models we use the bcrypt and jwt (json web token) for bcrypt = for password encryption and decription alorithm and makes it secreate and jwt for token refress tokens
+
+--- 
+
+now we go to the user file and write the bcrpt and jwt importing
