@@ -85,12 +85,44 @@ userSchema.methods.isPasswordCorrect = async function(password){
 
 userSchema.methods.generateAccessToken = function(){
     // in the jwt we have the sign method jo ki genrate karta hai tokens ko jwt token isko ham apne databse se id username and other ddata dete hai toh ye genrate karta hai 
+
+    // sabse pahle ham isko denge apna payload ki kya kya information aap rakh sakte ho 
+
+    // so at the last we have to return the jwt response isse ham varible me rakh ke ya aisse hi return kar sakte hai
+    return jwt.sign(
+        {
+            _id : this._id,
+            email : this.email,
+            username : this.username,
+            fullname : this.fullname
+        },
+        // then it takes the access token jo hame .env file me rakha hua hai 
+        process.env.ACCESS_TOKEN_SECRET,
+        // then we need the epiry ka token but woh hame object me bana ke deni parti hai 
+        {
+            expiresIn: process.env.ACCESS_TOKEN_EXPIRY
+        }
+    )
 }
 
 // and we make the generate refress token 
+// jo ki as it is generateAccessToken jsisa hi hota hai
 
 userSchema.methods.generateRefressToken = function(){
-
+    return jwt.sign(
+        {
+            _id : this._id,
+            // email : this.email,
+            // username : this.username,
+            // fullname : this.fullname
+        },
+        // then it takes the access token jo hame .env file me rakha hua hai 
+        process.env.REFRESH_TOKEN_SECRET,
+        // then we need the epiry ka token but woh hame object me bana ke deni parti hai 
+        {
+            expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+        }
+    )
 }
 
 export const User = mongoose.model("User", userSchema)
