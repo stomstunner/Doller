@@ -34,4 +34,21 @@ app.use(cookieParser())
 
 
 
+// here we write the routes 
+
+import userRouter  from './routes/user.routes.js'
+
+// so we use the middlewares kyuki ham jaisse hi userroute dalenge url me tab ham uss route ka controll de na chahate hai user router ko and the userrouter will decide ki hamara kya kaam hoga 
+
+
+// so we write the api in the versions forms
+app.use('/api/v1/users', userRouter)
+
+// http://localhost:8000/api/v1/users/registerUser
+
+// app.use('/users', userRouter)
+
+
+
+
 export {app}
