@@ -5,8 +5,8 @@ class ApiError extends Error{
         statusCode,
         massage = "Something went wrong",
         errors = [],
-        statck = ""
-        // this is the error statck  and status code matlab kya code hai user ka 
+        stack = ""
+        // this is the error stack  and status code matlab kya code hai user ka 
     ){
         // here we just overwrite the constructor
         super(massage)
@@ -18,8 +18,8 @@ class ApiError extends Error{
 
 
         // this is the production grade code for better error detection
-        if(statck){
-            this.statck = statck
+        if(stack){
+            this.stack = stack
         }
         else{
             Error.captureStackTrace(this, this.constructor)
