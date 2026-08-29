@@ -47,7 +47,7 @@ const registerUser = asyncHandler( async (req, res) =>{
 
     const {fullName, username, password, email} = req.body
 
-    console.log("Email: " , email );
+    // console.log("Email: " , email );
 
     // now we validate the data
     // if(fullName === ""){
@@ -69,7 +69,7 @@ const registerUser = asyncHandler( async (req, res) =>{
 
     // now we can check the user existed or not we can use the findOne method for that ki hamara username available hai ya nahi databse me iske liye ham $or ka use kar sakte hai jisme ham array ke ander bahaut sare objects ko checks kar sakte hai 
 
-    const existedUser = User.findOne({
+    const existedUser = await User.findOne({
         $or : [ { username }, { email }]
     })
 
@@ -77,6 +77,9 @@ const registerUser = asyncHandler( async (req, res) =>{
     if(existedUser){
         throw new ApiError(409, "The user with this email and the username is already present")
     }
+
+    // console.log(req.files);
+    
 
     // so we have all the access of the data with req.body from express
     // such that we have some other access from the multer 
@@ -86,9 +89,17 @@ const registerUser = asyncHandler( async (req, res) =>{
     const avatarLocalPath = req.files?.avatar[0]?.path;
     // here we handle the images 
 
-    const coverImageLocalPath = req.files?.coverImage[0]?.path;
+    // const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
     // also we have to spacially check ki hamare pass avatar toh hona hi chahiye 
+
+    // now we check the coverimage with the classic method
+    let coverImageLocalPath;
+    if( req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0 ){
+        // now we know ki hamre pass cover image hai hi hai
+
+        coverImageLocalPath = req.files.coverImage[0].path
+    }
 
     if(!avatarLocalPath) {
         throw new ApiError(400, "Avatar is required")
