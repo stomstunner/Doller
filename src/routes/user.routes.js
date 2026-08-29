@@ -18,7 +18,7 @@ router.route("/register").post(
 
     // so we wanted to send the coverimage and the avatar to by the help of multer jisme ham upload kanrege feields ko as in a array of objects 
 
-    upload.fields(
+    upload.fields([
         {
             // first file ka naam // communication bet frontend and backend me help karnege 
 
@@ -30,7 +30,7 @@ router.route("/register").post(
             name : "coverImage",
             maxCount : 1
         }
-    ),
+    ]),
     registerUser
 )
 
