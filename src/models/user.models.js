@@ -64,7 +64,7 @@ userSchema.pre("save", async function(next){
         return next();
     }
     // iska matlab hua ki hamre password ko bcrypt kar do hash of 10 times 
-    this.password = bcrypt.hash(this.password, 10)
+    this.password = await bcrypt.hash(this.password, 10)
     next()
 } )
 
