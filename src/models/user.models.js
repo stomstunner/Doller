@@ -19,7 +19,7 @@ const userSchema = new Schema(
             lowercase : true,
             trim : true,
         },
-        fullname:{
+        fullName:{
             type:String,
             required : true,
             trim : true,
@@ -58,14 +58,15 @@ const userSchema = new Schema(
 // iska matlab hai ki jaisse hi ham userSchema se save karne wale ho usse pahle hai ye task perform kare
 
 // and the thing is ki ham yaha pe ek callback function dete toh hai but callback function me hamare pass this ka acces nahi hota hai iske liye ham fucntion ka use karte hai == async fucntion ka use karte hai kyuki ham password decrypt karne me thoda time lag sakta hai 
-userSchema.pre("save", async function(next){
+userSchema.pre("save", async function(){
     // also we will check ki hamara password tabhi bycrypt hoga jab hamara password modified hoga na ki har baar 
     if(!this.isModified("password")){
-        return next();
+        // return next();
+        return ;
     }
     // iska matlab hua ki hamre password ko bcrypt kar do hash of 10 times 
-    this.password = await bcrypt.hash(this.password, 10)
-    next()
+    this.password = await bcrypt.hash(this.password, 10);
+    // next();
 } )
 
 
