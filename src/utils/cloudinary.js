@@ -31,7 +31,17 @@ const uploadOnCloudinary = async (LocalFilePath) => {
         })
 
         // our file is uploaded to the cloudinary sucessufully
-        console.log("File is uploaded on Cloudinary sucessfully", response.url);
+
+        // if our file is uploaded successfully on the cloudinary then we sholud delete it from our local server 
+
+        // just unlink the path 
+
+        fs.unlinkSync(LocalFilePath);
+
+        // this will gives us the public url of the image 
+        // console.log("File is uploaded on Cloudinary sucessfully", response.url);
+
+
         return response;
     }catch(error){
         // here we not only show the error but we unlink/ delete the file from locally saved temporarlly file as the upload operation got failed 
