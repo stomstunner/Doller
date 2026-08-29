@@ -40,11 +40,16 @@ import userRouter  from './routes/user.routes.js'
 
 // so we use the middlewares kyuki ham jaisse hi userroute dalenge url me tab ham uss route ka controll de na chahate hai user router ko and the userrouter will decide ki hamara kya kaam hoga 
 
+// app.use((req, res, next) => {
+//     console.log("REQUEST:", req.method, req.url);
+//     next();
+// });
+
 
 // so we write the api in the versions forms
-app.use('/api/v1/users', userRouter)
+app.use("/api/v1/users", userRouter)
 
-// http://localhost:8000/api/v1/users/registerUser
+// http://localhost:8000/api/v1/users/register
 
 // app.use('/users', userRouter)
 
