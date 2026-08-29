@@ -7,3 +7,4 @@
 - so the first controller is about the user registers 
 
 <!-- after that we make the routers -->
+
