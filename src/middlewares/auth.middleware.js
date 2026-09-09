@@ -5,9 +5,10 @@ import { ApiError } from "../utils/ApiError";
 import { asyncHandler } from "../utils/asynchandler";
 import jwt from "jsonwebtoken"
 import { User } from "../models/user.models";
+  
 
-
-// yaha pe ahmra req aur next toh kaam aa rha hai but res nahi so ham woha pe underscore ka use karnge
+// yaha 
+// pe ahmra req aur next toh kaam aa rha hai but res nahi so ham woha pe underscore ka use karnge
 export const verifyJWT = asyncHandler(async(req, _ , next)=>{
     try {
         const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "")
