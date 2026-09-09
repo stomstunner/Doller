@@ -16,6 +16,35 @@ import { ApiResponse } from "../utils/ApiResponse.js"
 // so here we register the user with the help of asynchandler = jo ki ek function aceept karta hai // it is an higher order fucntion( fucntion ke liye fucntion)
 
 
+// here we make the generateaccessandrefresshtoken 
+const generateAccessAndRefressTokens = async(userId)=>{
+    try {
+        // sabse pahle hame user ko find karna parega uska token generate karne ke liye 
+        const user = await User.findById(userId)
+
+        // lets hold the access and refress token from the user models 
+
+        const accessToken = user.generateAccessToken()
+        const refressToken = user.generateRefressToken()
+
+        // now jo hamra refress token hota hai woh user ke saath saath database me bhi present hota hai , but hamra access token har baar request ke saath jata hai aur woh user ke pass hota hai 
+
+        // so hame refresstoken ko database me save kar ke rakhna hai 
+
+        // uske liye ham `user` ka help lenge kyuki uske ander sara document present hai 
+
+        user.refressToken = refressToken
+        await user.save({validateBeforeSave : false})
+        // so user.save() method use karne se hamra mongoose ka code active ho jata hai aur woh validation bhi mangata hai ki like password dalo , username daalo but hame yaha koi vlaidation nahi karna hai bass save karna hai , await because we are talking with databse 
+
+        return {accessToken, refressToken}
+
+
+    } catch (error) {
+        throw new ApiError(500, "Something is wrong while generating the access and refress tokens")
+    }
+}
+
 const registerUser = asyncHandler( async (req, res) =>{
     // res.status(200).json({
     //     message : "Doller app"
@@ -148,4 +177,46 @@ const registerUser = asyncHandler( async (req, res) =>{
 
 })
 
-export {registerUser}
+// lets create the login user
+const loginUser = asyncHandler( async(req,res ) => {
+    // Chaliye login ke steps samajhte hain:
+    // 1. Request body se user ka login data (username/email aur password) lena.
+    // 2. User ka username ya email identify karna.
+    // 3. Database me us user ko find karna.
+    // 4. Diya gaya password sahi hai ya nahi, ye check karna.
+    // 5. Login successful hone par access token aur refresh token banana.
+    // 6. Tokens ko secure cookies ke through client ko bhejna.
+
+    const {email, username, password} = req.body
+
+    if(!username || !email){
+        throw new ApiError(400, "Username or email is required")
+    }
+
+    // now we want ki ham check kare user ko username ya email se toh iske liye ham databse me query langene ki dono me se jo pahle mil jaye toh uska data return kar do 
+
+    const user = await User.findOne({
+        $or : [{username}, {email}]
+    })
+
+    if(!user){
+        throw new ApiError(404, "User not found")
+    }
+
+    // if we found the user then how we can check the password 
+
+    // hamne ek checkpassword naam ka method banaya hua hai jisme hame apna abhi jo user ne password daala hai woh dalna hai aur request body se then hamra jo returned user hai user wlaa na ki mongodb wala usme hamne ispasswordcorrect naam ka method banaya the jisse ham yaha use kar sakte hai kyuki woh bass ek password leta haia ur hamre database se bycript kar ke original password and currentpassword ko check karta hai 
+
+    const isPasswordValid = await user.isPasswordCorrect(password)
+
+    if(!isPasswordValid){
+        throw new ApiError(401, "Invalid User Cradintials")
+    }
+
+    // if the both user and password is correct then make access and refress token 
+
+
+
+})
+
+export {registerUser, loginUser}
