@@ -215,8 +215,67 @@ const loginUser = asyncHandler( async(req,res ) => {
 
     // if the both user and password is correct then make access and refress token 
 
+    const {accessToken, refressToken} = await generateAccessAndRefressTokens(user._id)
+
+    // now hamare User ko ek baar aur call akrte hai ki ham nahi chate hai ki hamre pass password and refresstoken fir se aaye user ke passs
+
+    const loggedInUser = await User.findById(user._id).select("-password -refressToken")
 
 
+    // now we have to use the cookie jisme hame cookie ko secure banana hai= cookie hame dikhe frontend pe but woh bass modifieable ho sirf server se na ki frontend se 
+
+    const options = {
+        httpOnly : true, 
+        secure : true
+    }
+
+    // now we set the refress token and access token with using the cookie  aur ham usme .cookie laagte jayege aur set karte jayenge 
+
+    return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refressToken", refressToken, options)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                user: loggedInUser, accessToken, refressToken
+            },
+            "User LoggedIn successfully"
+        )
+    )
 })
 
-export {registerUser, loginUser}
+// yaha pe hamara 
+
+const logoutUser = asyncHandler(async(req, res)=>{
+    // because of the middleware we have access to the modified request kyuki hamne verifyjwt ke last me req.user me user ko add kar diya so ab req ke pass user ka bhi access hai 
+
+    // now we jsut have to delte the refress token for the logout
+    
+    // first of it take the id then a object jisme ham ek keyword of mongoDB se set karte hai filed of the mongoose ke 
+    await User.findByIdAndDelete(
+        req.user._id,
+        {
+            $set: {
+                refressToken: undefined
+            }
+        },
+        {
+            new: true,
+            // it gives in return a new updated refress token 
+        }
+
+    )
+
+    const options = {
+        httpOnly : true, 
+        secure : true
+    }
+
+    // now we clear the cookie in return 
+
+    return res.status(200).clearCookie("accessToken", options).clearCookie("refressToken", options).json(new ApiResponse(200, {}, "User loggedOut successfully"))
+})
+
+export {registerUser, loginUser, logoutUser}
