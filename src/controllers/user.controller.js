@@ -12,6 +12,7 @@ import {uploadOnCloudinary} from "../utils/cloudinary.js"
 
 // now we import the api response for sending the data
 import { ApiResponse } from "../utils/ApiResponse.js"
+import jwt  from "jsonwebtoken"
 
 // so here we register the user with the help of asynchandler = jo ki ek function aceept karta hai // it is an higher order fucntion( fucntion ke liye fucntion)
 
@@ -282,4 +283,63 @@ const logoutUser = asyncHandler(async(req, res)=>{
     return res.status(200).clearCookie("accessToken", options).clearCookie("refressToken", options).json(new ApiResponse(200, {}, "User loggedOut successfully"))
 })
 
-export {registerUser, loginUser, logoutUser}
+// lets make another controller for refress and access token that is incomming 
+const refressAccessToken = asyncHandler(async(req, res) => {
+    // lets store the refress token in a variable kyuki ham refress token ki hi help se frontend se request karnege new access token ke liye 
+    const incomingRefressToken = req.cookies.refressToken || req.body.refressToken
+    // for both mobile and web
+
+    // lets use the error handler 
+    if(!incomingRefressToken){
+        throw new ApiError(401, "Unauthrized request")
+    }
+
+    try {
+        
+            // now we verfiy the token from the database with the help of jwt jisse ham raw token ko dekh paye kyuki user ke pass encrypted token hota hai 
+            const decodedToken = jwt.verify(incomingRefressToken, process.env.REFRESH_TOKEN_SECRET)
+        
+            // so in the decoded token from the refresstoken se jo hamae data mila hai usme hamare pass return me decoded data milta hai aur hamne refress token banate time usme bass id diya tha toh ham decoded token se id nikal ke user ka data le sakte hai 
+        
+            const user = await User.findById(decodedToken?._id)
+        
+            // lets use the error handler 
+            if(!user){
+                throw new ApiError(401, "Invalid refress token")
+            }
+        
+            // now we check the refress token comming from the user and the refress token stored in the database 
+            if(incomingRefressToken !== user?.refressToken){
+                throw new ApiError(401, "Refress Token is expired or the Used")
+            }
+        
+            // now we generate the refress token from the above method
+            const {accessToken, newRefressToken} = await generateAccessAndRefressTokens(user._id)
+        
+            // now we write the options 
+            const options = {
+                httpOnly : true,
+                secure : true
+                // this is used to save the refress token 
+            }
+        
+            // now we return the response with
+            return res
+            .status(200)
+            .cookie("accessToken", accessToken, options)
+            .cookie("refressToken", newRefressToken, options)
+            .json(
+                new ApiResponse(
+                    200,
+                    {
+                        accessToken, refressToken : newRefressToken
+                    },
+                    "Access Token Refressed"
+                )
+            )
+    } catch (error) {
+        throw new ApiError(401, error?.message || "Invalid refress Token")
+    }
+})
+
+export {registerUser, loginUser, logoutUser, refressAccessToken}
