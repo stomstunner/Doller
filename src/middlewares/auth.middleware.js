@@ -1,10 +1,10 @@
 // ye middleware bass check karega ki user hai ya nahi hai 
 // so we verify user with the access token and refress token 
 
-import { ApiError } from "../utils/ApiError";
-import { asyncHandler } from "../utils/asynchandler";
+import { ApiError } from "../utils/ApiError.js";
+import { asyncHandler } from "../utils/asynchandler.js";
 import jwt from "jsonwebtoken"
-import { User } from "../models/user.models";
+import { User } from "../models/user.models.js";
   
 
 // yaha 
