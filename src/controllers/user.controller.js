@@ -189,11 +189,15 @@ const loginUser = asyncHandler( async(req,res ) => {
 
     const {email, username, password} = req.body
 
-    if(!username || !email){
+    if(!username && !email){
         throw new ApiError(400, "Username or email is required")
     }
 
     // now we want ki ham check kare user ko username ya email se toh iske liye ham databse me query langene ki dono me se jo pahle mil jaye toh uska data return kar do 
+
+    // if(!(username || email)){
+    // throw new ApiError(400, "Username or email is required")
+    // }
 
     const user = await User.findOne({
         $or : [{username}, {email}]
@@ -256,7 +260,7 @@ const logoutUser = asyncHandler(async(req, res)=>{
     // first of it take the id then a object jisme ham ek keyword of mongoDB se set karte hai filed of the mongoose ke 
     await User.findByIdAndDelete(
         req.user._id,
-        {
+        { 
             $set: {
                 refressToken: undefined
             }
