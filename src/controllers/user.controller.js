@@ -429,6 +429,92 @@ const updateAccountDetails = asyncHandler(async(req, res) => {
 
 })
 
+// now we make the avatar change controller jaha pe ham user ka profile pgoto change karne ka colntroller banayenge 
+const updateUserAvatar = asyncHandler(async(req, res)=> {
+    // now we store the profile ka path in the local storage with the help of the multer 
+    const avatarLocalPath = req.file?.path
+
+    if(!avatarLocalPath){
+        throw new ApiError(400, "Avatar File is missing")
+    }
+
+    // now we have to upload that file to the cloudinary so we had make a fuction where we just have to give the local storage ka path to the mthod UploadOnColoudinary
+
+    const avatar = await uploadOnCloudinary(avatarLocalPath)
+
+    // now we chaeck ki hamare pass url aaya ki nahi cloudinary se kyuki hamara fucntion return me ek url deta hai
+    if(!avatar.url){
+        throw new ApiError(400, "Error while uploading avatar on database")
+    }
+
+    // for updation 
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            // here we write ki hame kisse update karna hai 
+            $set:{
+                avatar : avatar.url 
+            }
+        },
+        {
+            new : true
+        }
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            user,
+            "Avatar image updated Successfully"
+        )
+    )
+})
+const updateUserCoverImage = asyncHandler(async(req, res)=> {
+    // now we store the profile ka path in the local storage with the help of the multer 
+    const coverImageLocalPath = req.file?.path
+
+    if(!coverImageLocalPath){
+        throw new ApiError(400, "Cover Image File is missing")
+    }
+
+    // now we have to upload that file to the cloudinary so we had make a fuction where we just have to give the local storage ka path to the mthod UploadOnColoudinary
+
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+
+    // now we chaeck ki hamare pass url aaya ki nahi cloudinary se kyuki hamara fucntion return me ek url deta hai
+    if(!coverImage.url){
+        throw new ApiError(400, "Error while uploading cover image on database")
+    }
+
+    // for updation 
+
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            // here we write ki hame kisse update karna hai 
+            $set:{
+                coverImage : coverImage.url 
+            }
+        },
+        {
+            new : true
+        }
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            user,
+            "cover image updated Successfully"
+        )
+    )
+})
+
 export {
     registerUser, 
     loginUser, 
@@ -436,5 +522,6 @@ export {
     refressAccessToken, 
     changeCurrentPassword, 
     getCurrentUser,
-    updateAccountDetails
+    updateAccountDetails,
+    updateUserAvatar
 }
