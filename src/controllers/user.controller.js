@@ -342,4 +342,62 @@ const refressAccessToken = asyncHandler(async(req, res) => {
     }
 })
 
-export {registerUser, loginUser, logoutUser, refressAccessToken}
+// lets make a change the current password controller 
+
+const changeCurrentPassword = asyncHandler(async(req, res)=>{
+    // now hamne password change karne ke liye user se kya kya filed lena hai= 
+    // ek toh hame lena hai oldpass and the new pass
+    const {oldPassword, newPassword, confPassword} = req.body
+
+    if(!(newPassword === confPassword)){
+        throw new ApiError(400, "Miss-Matched Password")
+    }
+
+    // if we are using the changecurrentpassword then the user must be logged in so we have access to the user from the req.user kyuki hamne verifyjwt ke last me req.user me user ko add kar diya tha
+    // also we write the middleware in the routes so that we can access the user from the req.user
+
+
+    const user = await User.findById(req.user?._id)
+
+    // also we created a method in the user model to check that the user passsword is corret or not 
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+
+    // check for password is correct or not error control 
+    if(!isPasswordCorrect){
+        throw new ApiError(400, "Incorrect Old Password")
+
+    }
+
+    // ager hamra purana password correct tha toh ham ab naya password set karenge 
+    user.password = newPassword
+    await user.save({validateBeforeSave : false} )
+
+    // now we want to send a response to the user
+    return res
+    .status(200)
+    .json( new ApiResponse(
+        200,
+        {},
+        "Password Changed Successfully"
+    ))
+})
+
+// lets make the get current user ka code jaha pe  hame hamaeahs current user mil jaye 
+const getCurrentUser = asyncHandler(async(req, res) => {
+    return res
+    .status(200)
+    .json(
+        200,
+        req.user,
+        "Current User Fetched Successfully"
+    )
+})
+
+export {
+    registerUser, 
+    loginUser, 
+    logoutUser, 
+    refressAccessToken, 
+    changeCurrentPassword, 
+    getCurrentUser
+}
