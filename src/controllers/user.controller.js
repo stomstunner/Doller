@@ -393,11 +393,48 @@ const getCurrentUser = asyncHandler(async(req, res) => {
     )
 })
 
+// now we make the controller for the update user details 
+const updateAccountDetails = asyncHandler(async(req, res) => {
+    const {fullName, email} = req.body
+    if(!fullName || !email){
+        throw new ApiError(400, "All fileds are required")
+    }
+
+    // now we find the user by its id and update and in the 3red object we write new : true jisse data update hone ke baad return bhi karege 
+    // we find the user by its id from the model databse 
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            // here we set the data updation 
+            $set: {
+                fullName,
+                email
+                // or we can write as
+                // fullName : fullName
+                // email : email
+            }
+        },
+        {
+            new: true
+        }
+    ).select("-password")
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200, user, "Account details updated successfully"
+        )
+    )
+
+})
+
 export {
     registerUser, 
     loginUser, 
     logoutUser, 
     refressAccessToken, 
     changeCurrentPassword, 
-    getCurrentUser
+    getCurrentUser,
+    updateAccountDetails
 }
