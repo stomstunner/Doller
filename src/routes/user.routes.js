@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { loginUser, logoutUser, registerUser } from "../controllers/user.controller.js";
+import { loginUser, logoutUser, registerUser , refressAccessToken } from "../controllers/user.controller.js";
 
 const router = Router()
 
@@ -46,8 +46,10 @@ router.route("/register").post(
 // matlab ki jab ham login pe ho toh hamara kon sa mehtod post me run ho = loginuser 
 router.route("/login").post(loginUser)
 
-// secure // now we use the logout router jisme ham logoutUser run karne se pahle ham ek middleware ko run karenge verifiyJWT and then we run logoutuser = isliye ham verifiyJWT ke last me hamne next() likha tha jisse pata toh chale ki router ko abhi ek aur chiz ko chalana hai that is logoutuser 
+// // now we use the logout router jisme ham logoutUser run karne se pahle ham ek middleware ko run karenge verifiyJWT and then we run logoutuser = isliye ham verifiyJWT ke last me hamne next() likha tha jisse pata toh chale ki router ko abhi ek aur chiz ko chalana hai that is logoutuser 
 
+// secure 
 router.route("/logout").post(verifyJWT, logoutUser)
+router.route("/refress-token").post()
 
 export default router
