@@ -8,7 +8,7 @@ import { User } from "../models/user.models.js"
 
 // import the upload on cloudinary mehtod from the utils 
 
-import {uploadOnCloudinary} from "../utils/cloudinary.js"
+import {deleteFromCloudinary, uploadOnCloudinary} from "../utils/cloudinary.js"
 
 // now we import the api response for sending the data
 import { ApiResponse } from "../utils/ApiResponse.js"
@@ -443,7 +443,26 @@ const updateUserAvatar = asyncHandler(async(req, res)=> {
 
     // now we have to upload that file to the cloudinary so we had make a fuction where we just have to give the local storage ka path to the mthod UploadOnColoudinary
 
+
+    // Fetch the old user/avatar before updating.
+    // Delete that old avatar after the new avatar is saved.
+    // get the current user before replacing the avatar 
+
+    const existingUser = await User.findById(req.user?._id)
+
+
+    // if existing user not found 
+    if(!existingUser){
+        throw new ApiError(404, "User not Found")
+    }
+
+    // save the oldpublic id  temporarlly
+    const oldAvatarPublicId = existingUser.avatar?.publicId;
+
+    // upload the new image 
+
     const avatar = await uploadOnCloudinary(avatarLocalPath)
+    // const oldAvatar = await uploadO
 
     // now we chaeck ki hamare pass url aaya ki nahi cloudinary se kyuki hamara fucntion return me ek url deta hai
     if(!avatar.url){
@@ -457,13 +476,19 @@ const updateUserAvatar = asyncHandler(async(req, res)=> {
         {
             // here we write ki hame kisse update karna hai 
             $set:{
-                avatar : avatar.url 
+                avatar : avatar.url,
+                publicId: avatar.public_id,
             }
         },
         {
             new : true
         }
     ).select("-password")
+
+    // delete the old image only after the successfull update 
+    if(oldAvatarPublicId){
+        await deleteFromCloudinary(oldAvatarPublicId)
+    }
 
     return res
     .status(200)
