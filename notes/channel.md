@@ -11,3 +11,8 @@ b
 To find how many subscribers a channel has, we query the subscription model for documents whose channel matches that channel. The number of matching documents is the subscriber count. -->
 
 ![alt text](image-10.png)
+
+---
+## nesting lookup because we have the owner detil in the user jo ki videos me bass owner hi hai
+
+![alt text](image-11.png)
