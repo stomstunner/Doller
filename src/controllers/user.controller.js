@@ -387,9 +387,12 @@ const getCurrentUser = asyncHandler(async(req, res) => {
     return res
     .status(200)
     .json(
-        200,
-        req.user,
-        "Current User Fetched Successfully"
+        new ApiResponse(
+            200,
+            req.user,
+            "Current User Fetched Successfully"
+        )
+        
     )
 })
 
@@ -524,5 +527,6 @@ export {
     getCurrentUser,
     updateAccountDetails,
     updateUserAvatar,
-    updateUserCoverImage
+    updateUserCoverImage,
+
 }
