@@ -557,6 +557,108 @@ const updateUserCoverImage = asyncHandler(async(req, res)=> {
 //  Delete old image
 })
 
+// now we make the controller for getting the users channel profile such as subcriber count and how many channel they subcribed to 
+const getUserChannelProfile = asyncHandler(async(req, res) => {
+    // we get the details of the channel when we go to their channel from the url so we use the req.param
+
+    const {username} = req.params
+
+    if(!username?.trim()){
+        throw new ApiError(400, "username is missing")
+    }
+
+    // now we assume ki hamare pass username hai then we apply the aggreation pipeline on the User coloumn 
+    // coloumnname.aggregate(array ke ander object each object signifies the pipeline staging like 1st pipeline , 2nd pipeline etc)
+    const channel = await User.aggregate([
+        {
+            // first pipeline
+            $match :{
+                username: username?.toLowerCase()
+            }
+        },
+        {
+            // 2nd pipeline 
+            $lookup:{
+                // 1st parameter is to from = kaha se hame dekhna hai jo ki hai hamara suncription model kyuki hame channel ka pata karna hai  ki kitne subcriber hai so Subcription ka s chota and last me s lag jata hai kyuki ye mongoose ka defination hai 
+                from: "subcriptions",
+                localField: "_id",
+                foreignField: "channel",
+                // when we select the foriegn field channel then we get the subcriber and when we select the cubcriber then we get the channel 
+                // ab isko bolna kya hai 
+                as:"subscribers"
+            },    
+        },
+
+        // now we want ki hamne kitne channel ko subcribe kiya hai uske liye we use the another pipeline jisme bass ham foriegn field ko subcriber daal denge then we find ki hamen kitne channel ko subcribed kiya hai 
+
+        {
+            $lookup:{
+                from: "subscriptions",
+                localField:"_id",
+                foreignField:"subscriber",
+                as:"subscribedTo"
+            }
+        },
+        // now we want ki ham count kare ki hamre pass kitne suncribers hai aur hamare pass kitne channel hai jinko ki hamen subcribed kiya hai 
+        // that why we write another pipeline where we use the addFileds where we add the upper pipleine in it jinko ki hamne naam diya hai `as` ke ander with doller sign jisse hame woh as a field lagega na ki as a string 
+        {
+            $addFields:{
+                subscribersCount:{
+                    // for counting we use the size keyword 
+                    $size: "$subscribers"
+                },
+                // now we add another filed for channelWeSubscriberTO
+                channelsSubscribedToCount:{
+                    $size: "$subscribedTo"
+                },
+                // now we find ki ham kisi channel pe subscribed hai ya nahi iske liye ham bass ek true or false return kar denge and usi hisab se frontend pata kar lege ki user uss channel pe subscribed hai ya nahi hai 
+                isSubscribed:{
+                    // for this we use the condition operator in mongoDB jisme ham if then else ka use karte hai if me ham conditon ya expression likhte hai aur ager true hua expression so we return someting in the then and else me ham false hone ke badd ke kaam likhte hai if se kuch nahi expression/ condition match hua toh 
+                    $cond: {
+                        if: {
+                            // in the if we just have to find ki hamre pass jo document aaya subscribers(addFileds ke bad) usme mai hu ya nahi 
+                            // for that we use the another operator $in jo ki find karta hai kya chiz hai aur kisme woh chiz hai 
+                            $in: [req.user?._id, "$subscribers.subscriber"]
+                            // it means ki hamare pass jo req.user.id ko dekho ki kya woh subscribers filed ke ander subscriber object hai ya nahi 
+                        },
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+        // now we write the code for the project where we give only selected things in return not all data jo bhi usse demanad kar arha hai 
+        {
+            $project:{
+                // ab iske ander ham field ka naaam likhenge jo jo chaiye usek aage 1 laga denege to woh return hoga nahi 1 laga woh jo filed woj jayage hi nahi 
+                fullName: 1,
+                username: 1,
+                email: 1,
+                avatar: 1,
+                coverImage: 1,
+                subscribersCount: 1,
+                channelsSubscribedToCount: 1,
+                isSubscribed: 1,
+                createdAt: 1
+            }
+        }
+
+    ])
+
+    // now we see ki haamre pass channel hai bhi ya nahi 
+    if(!channel?.length){
+        throw new ApiError(404, "channel does not exit ")
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, channel[0], "User channel fetched successfully")
+    )
+})
+
+// for the watchHistory we have to use the aggregate in the nested lookup from the users and the videos kyuki hamare pass user -> left join -> hai videos ka but for the owner of the video jo ki hame dikhana hog thumbnail detail ke niche uske liye further  we have to nesting in the pipeline jisse hamare pass owner ke ander user me  uska id and the username fetch akr sake 
+
 export {
     registerUser, 
     loginUser, 
@@ -567,5 +669,6 @@ export {
     updateAccountDetails,
     updateUserAvatar,
     updateUserCoverImage,
+    getUserChannelProfile,
 
 }
