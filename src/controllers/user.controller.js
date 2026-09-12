@@ -510,6 +510,10 @@ const updateUserCoverImage = asyncHandler(async(req, res)=> {
 
     // now we have to upload that file to the cloudinary so we had make a fuction where we just have to give the local storage ka path to the mthod UploadOnColoudinary
 
+    const existingUser = await User.findById(res.user?._id)
+
+    const oldCoverImagePublicId = existingUser.coverImage?.publicId;
+
     const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
     // now we chaeck ki hamare pass url aaya ki nahi cloudinary se kyuki hamara fucntion return me ek url deta hai
@@ -524,13 +528,18 @@ const updateUserCoverImage = asyncHandler(async(req, res)=> {
         {
             // here we write ki hame kisse update karna hai 
             $set:{
-                coverImage : coverImage.url 
+                coverImage : coverImage.url,
+                publicId: coverImage.public_id,
             }
         },
         {
             new : true
         }
     ).select("-password")
+
+    if(oldCoverImagePublicId){
+        await deleteFromCloudinary(oldCoverImagePublicId)
+    }
 
     return res
     .status(200)
@@ -541,6 +550,11 @@ const updateUserCoverImage = asyncHandler(async(req, res)=> {
             "cover image updated Successfully"
         )
     )
+
+//  Get old image publicId
+//  Upload new image
+//  Update database
+//  Delete old image
 })
 
 export {
