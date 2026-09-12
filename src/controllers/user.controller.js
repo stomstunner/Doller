@@ -13,6 +13,7 @@ import {deleteFromCloudinary, uploadOnCloudinary} from "../utils/cloudinary.js"
 // now we import the api response for sending the data
 import { ApiResponse } from "../utils/ApiResponse.js"
 import jwt  from "jsonwebtoken"
+import mongoose from "mongoose"
 
 // so here we register the user with the help of asynchandler = jo ki ek function aceept karta hai // it is an higher order fucntion( fucntion ke liye fucntion)
 
@@ -657,7 +658,71 @@ const getUserChannelProfile = asyncHandler(async(req, res) => {
     )
 })
 
-// for the watchHistory we have to use the aggregate in the nested lookup from the users and the videos kyuki hamare pass user -> left join -> hai videos ka but for the owner of the video jo ki hame dikhana hog thumbnail detail ke niche uske liye further  we have to nesting in the pipeline jisse hamare pass owner ke ander user me  uska id and the username fetch akr sake 
+const getWatchHistory = asyncHandler(async(req, res) => {
+
+    // for the watchHistory we have to use the aggregate in the nested lookup from the users and the videos kyuki hamare pass user -> left join -> hai videos ka but for the owner of the video jo ki hame dikhana hog thumbnail detail ke niche uske liye further  we have to nesting in the pipeline jisse hamare pass owner ke ander user me  uska id and the username fetch akr sake 
+
+    // now we write the aggregate pipeline for id match but in the mongodeb it gives us a string jisse ki match karte time mongoose hamare liye khud se hi usse object me badal deta hai but in the aggregate pipeline the code directly goes to the mongodb toh hame khud se hi object banana parta hai
+
+    const user = await User.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(req.user._id)
+            }
+        },
+        {
+            $lookup: {
+                from: "videos",
+                localField: "watchHistory",
+                foreignField: "_id",
+                as: "watchHistory",
+                pipeline: [
+                    {
+                        $lookup:{
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "owner",
+                            // so now we have the user = and uske ander ka bhaut sara field aa gaya hai 
+                            // ham yahi pe pipeline laga sakte hai 
+                            pipeline:[
+                                {
+                                    $project: {
+                                        // ab hamne yahi pe project lagaya hai toh sara data owner ke ander hi raheha matlab owner me bass itna hi data rahega 
+                                        fullName: 1,
+                                        username: 1,
+                                        avatar: 1
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        // now we write another pipeline because in the frontend usse loop na lagana parega ki owner ke 1st vlaue ke ander me username, fullName and the avatar hoaga baldi usse data ekdam easliy mil jayega 
+                        $addFields: {
+                            owner: {
+                                // now we need the first elemet from the owner filed 
+                                $first: "$owner"
+                                // ab frontend wale ko direct ho owner mil jayega jisse ki woh dot kar ke usme se value nikal lega 
+                            }
+                        }
+                    }
+                ]
+            }
+            // isse hamare pass videos ke saath saath user bhi join ho gaya hai 
+            // now we have to do the nesting jisme hame fir se ek aur lookup lagana hai jisme ham user se owner se detail lenge jisme ki hamare pass user hi hai    
+            // abhi hai ham videos ke ander usse hame user me lookup karna hai
+        }
+    ])
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200, user[0].watchHistory, "Watch History Fetched Successfully"
+        )
+    )
+})
 
 export {
     registerUser, 
@@ -670,5 +735,6 @@ export {
     updateUserAvatar,
     updateUserCoverImage,
     getUserChannelProfile,
+    getWatchHistory,
 
 }
