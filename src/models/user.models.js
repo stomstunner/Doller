@@ -36,8 +36,14 @@ const userSchema = new Schema(
             },
         },
         coverImage:{
-            type: String,
-            publicId: String,
+            url: {
+                type: String,
+                default: "",
+            },
+            publicId: {
+                type: String,
+                default: "",
+            },
         },
         watchHistory:[
             {
