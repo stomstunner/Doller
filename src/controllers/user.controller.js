@@ -150,10 +150,16 @@ const registerUser = asyncHandler( async (req, res) =>{
     // avatar filed me hame databse me bass avatar image ka url hi upload karna hai bass jo ki hame cloudinary se response me milta hai response me hame baht sare object milte hai, but we want the only avatar url to stored on the database 
     const user = await User.create({
         fullName,
-        avatar : avatar.url,
+        avatar:{
+            url: avatar.secure_url || avatar.url,
+            publicId : avatar.public_id,
+        },
         // for the coverimage we check here only ki hamre pass coverimage ka url hai ya nahi ager nahi hai toh ham empty hi rehne denge kyuki ye databse me required nahi hai but hame ek baar chek bhi karna hai ki url aaya hai ya nahi 
 
-        coverImage : coverImage?.url || "",
+        coverImage:{
+            url: coverImage?.secure_url || coverImage?.url || "",
+            publicId: coverImage?.public_id || "",
+        },
         email,
         password, 
         username : username.toLowerCase()
@@ -264,7 +270,7 @@ const logoutUser = asyncHandler(async(req, res)=>{
         req.user._id,
         { 
             $set: {
-                refressToken: undefined
+                refressToken: 1// remove field from the document
             }
         },
         {
