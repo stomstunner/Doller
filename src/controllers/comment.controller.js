@@ -515,7 +515,7 @@ const updateComment = asyncHandler(async(req, res) => {
     await comment.save()
 
     const updatedComment = await Comment.findById(commentId)
-    .pupulate(
+    .populate(
         "owner",
         commentOwnerFields
     )
