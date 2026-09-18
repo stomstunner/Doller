@@ -457,13 +457,14 @@ const addTweetComment = asyncHandler(async(req, res) => {
 // so the main intution is to we get the updated comment ka content from the request.body and now we have to update the previus comment so for that we havet these upper steps  
 
 const updateComment = asyncHandler(async(req, res) => {
-    // find the commentid 
+    // 1. find the commentid 
     const {commentId} = req.params;
+    // 2 find the content 
     const {content} = req.body;
 
     validateObjectId(commentId);
 
-    // is comment is not empty 
+    // 3 is comment is not empty 
     if(!content?.trim()){
         throw new ApiError(
             400,
@@ -483,8 +484,8 @@ const updateComment = asyncHandler(async(req, res) => {
     //     )
     // }
 
-    // now we check ki ham usse edite kar sakte hai ya nahi and kya comemtn exits karti bhi hai ya nahi 
-/*
+    // 4 now we check ki ham usse edite kar sakte hai ya nahi and kya comemtn exits karti bhi hai ya nahi 
+
     const comment = await Comment.findOne(
         {
             _id : commentId,
@@ -493,7 +494,7 @@ const updateComment = asyncHandler(async(req, res) => {
         }
     )
 
-    // if not found
+    // 5 if not found
     if(!comment){
         throw new ApiError(
             404,
@@ -501,5 +502,35 @@ const updateComment = asyncHandler(async(req, res) => {
         )
     }
 
+    // 7 now we put the content of comment me content jo ayaa hai usse trim kar ke 
+    comment.content = content.trim()
+
+    // 8 isedited ko true kar do kyuki hamne comment ko edite kiya hai 
+    comment.isEdited = true
+
+    // 9 date laga do edited at me abhi ka
+    comment.editedAt = new Date()
+
+    // 10 comment updated wale ko save kar do 
+    await comment.save()
+
+    const updatedComment = await Comment.findById(commentId)
+    .pupulate(
+        "owner",
+        commentOwnerFields
+    )
+    .lean()
+
+    // now we send the response to the frontend 
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            updatedComment,
+            "Comment Updated Successfully"
+        )
+    )
 
 })
