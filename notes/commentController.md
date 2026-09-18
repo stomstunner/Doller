@@ -53,7 +53,9 @@ DELETE
   - Pagination
   - Sorting
 
+
 ``` js
+
 
 // GET /api/v1/comments/video/:videoId?page=1&limit=20
 
@@ -391,3 +393,104 @@ const getVideoComments = asyncHandler(async (req, res) => {
 })
 
 ```
+
+
+
+
+## addVideoComment
+
+- videoId mila?
+- valid hai?
+- video exist karti hai?
+- content aaya?
+- empty to nahi?
+- comment create karo
+- response bhejo
+
+
+# updateComment
+
+```jsx
+// PATCH /api/v1/comments/:commentId
+// Body: { "content": "Updated Comment" }
+
+const updateComment = asyncHandler(async (req, res) => {
+
+    // 1. Comment ID nikalo
+    const { commentId } = req.params
+
+    // 2. Updated content nikalo
+    const { content } = req.body
+
+    // 3. Comment ID validate karo
+    validateObjectId(commentId, "Comment ID")
+
+    // 4. Content validate karo
+    if (!content?.trim()) {
+
+        throw new ApiError(
+            400,
+            "Updated comment content is required"
+        )
+    }
+
+    // 5. Comment dhundo
+    const comment = await Comment.findOne({
+
+        _id: commentId,
+
+        // Sirf owner hi edit kar sakta hai
+        owner: req.user._id,
+
+        // Deleted comment edit nahi hoga
+        isDeleted: false
+    })
+
+    // 6. Comment mila?
+    if (!comment) {
+
+        throw new ApiError(
+            404,
+            "Comment not found or you are not allowed to edit it"
+        )
+    }
+
+    // 7. Content update karo
+    comment.content = content.trim()
+
+    // 8. Edited flag lagao
+    comment.isEdited = true
+
+    // 9. Edited time save karo
+    comment.editedAt = new Date()
+
+    // 10. Database me save karo
+    await comment.save()
+
+    // 11. Updated comment owner details ke saath fetch karo
+    const updatedComment = await Comment.findById(
+        comment._id
+    )
+        .populate(
+            "owner",
+            commentOwnerFields
+        )
+        .lean()
+
+    // 12. Response bhejo
+    return res
+        .status(200)
+        .json(
+
+            new ApiResponse(
+
+                200,
+
+                updatedComment,
+
+                "Comment updated successfully"
+            )
+        )
+})
+```
+
