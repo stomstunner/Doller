@@ -1,4 +1,6 @@
 // first of all we need some utilities 
+
+/** @type {import("../models/comment.models.js").Comment} */
 import mongoose from "mongoose" ;
 import { Comment} from "../models/comment.models.js"
 import {Video} from "../models/video.models.js"
@@ -161,7 +163,11 @@ const getTweetComments = asyncHandler(async(req, res)=>{
     )
     
     const limit = Math.min(
-        Number.parseInt(req.query.limit) || 20,
+        Math.max(
+
+            Number.parseInt(req.query.limit) || 20,
+            1
+        ),
         100
     )
     
@@ -228,5 +234,270 @@ const getTweetComments = asyncHandler(async(req, res)=>{
     )
 })
 
+// here we make the getCommentReplies ka controller 
+// things we should keep in the mind 
+// find the commentId
+// then validate the object id
+// then see that our comment exist or not 
+const getCommentReplies = asyncHandler(async(req, res)=> {
+    const {commentId} = req.params;
+
+    validateObjectId(commentId, "Comment ID");
+
+    // now we write the code for the pagination , limit and the skip 
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    )
+
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 20,
+            1
+        ),
+        100
+    )
+
+    const skip = (page - 1) * limit;
+
+    const parentComment = await Comment.exists(
+        {
+            _id: commentId,
+            isDeleted : false
+        }
+    )
+
+    if(!parentComment){
+        throw new ApiError(
+            404,
+            "Parent comment not found"
+        )
+    }
+
+    // now we make the filter 
+    // jisme ham parentComment me commentId daal dnege jisse hamne jass isi current comment jo ki mera parent comment hai usi ka id milega 
+    const filter = {
+        parentComment : commentId,
+        isDeleted: false
+    }
+
+    // now we find the replies
+    const replies = await Comment.find(filter)
+    .populate(
+        "owner",
+        commentOwnerFields
+    )
+    .sort(
+        {
+            createdAt: 1
+        }
+    )
+    .skip(skip)
+    .limit(limit)
+    .lean()
+
+    // now we fins the total replies 
+    const totalReplies = await Comment.countDocuments(filter)
+
+    return  res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                replies,
+                page,
+                limit,
+                totalReplies,
+                totalPages : Math.ceil(totalReplies/ limit),
+                hasNextPage : (page * limit) < totalReplies
+            },
+            "Replies Fetched Successfully"
+        )
+    )
+})
+/*
+// now we make the addVideoComment controller
+
+// 1. User kya create karna chahta hai?
+// 2. Required data aaya?
+// 3. Data valid hai?
+// 4. Jis cheez ke andar create kar rahe hain wo exist karti hai?
+// 5. Database me save kaise hoga?
+// 6. Response me kya bhejna hai?
+
+const addVideoComment = asyncHandler(async(req, res) => {
+    // 1 destructure the videoId from the req.params
+    const {videoId} = req.params;
+    // 2 extract the contant from  the req.body
+    const {content} = req.body;
+    // 3 now we validate the object id 
+    validateObjectId(videoId, "Video ID");
+    // 4 comment khali toh nahi hai 
+    // ager content hai toh usko trim kar do , ager content nahi hai toh error do
+    if(!content?.trim()){
+        throw new ApiError(
+            400,
+            "Comment content is required"
+        )
+    }
+
+    // 5 now we check ki video exist karti hai ya nahi 
+    const videoExists = await Video.exists({
+        _id: videoId
+    })
+
+    // 6 if video does not exist
+    if(!videoExists){
+        throw new ApiError(
+            404,
+            "video not found"
+        )
+    }
+
+    // 7 now we create the comment 
+    const comment = await Comment.create(
+        {
+            content : content.trim(),
+            video: videoId,
+            owner : req.user?._id,
+            parentComment: null
+
+        }
+    )
+    // 8. Owner details populate karke lao
+    const createdComment = await Comment.findById(  comment._id )
+    .populate(
+        "owner",
+        commentOwnerFields
+    )
+    .lean()
+
+    // now we send the response 
+    return res
+    .status(201)
+    .json(
+        new ApiResponse(
+            201,
+            createdComment,
+            "Comment Added Successfully"
+
+        )
+    )
+})
+
+const addTweetComment = asyncHandler(async(req, res) => {
+    // tweet id 
+    const {tweetId} = req.params;
+    // content from req.body
+    const {content} = req.body;
+    // vlaidate the objectid 
+    validateObjectId(tweetId);
+
+    if(!content?.trim()){
+        throw new ApiError(
+            400,
+            "Content not found"
+        )
+    }
+    // tweet exits or not 
+    const tweetExists = await Tweet.exists({_id : tweetId})
+
+    // if not
+    if(!tweetExists){
+        throw new ApiError(404, "Tweet does not exist")
+    }
 
 
+    // now we create the comment for the tweet
+
+    const comment = await Comment.create(
+        {
+            content : content.trim(),
+            tweet: tweetId,
+            parentComment: null,
+            owner : req.user._id
+        }
+    )
+
+    // now we populate the commetn
+    const createdComment = await Comment.findById(comment._id)
+    .populate(
+        "owner",
+        commentOwnerFields
+    )
+    .lean()
+
+    return res
+    .status(201)
+    .json(
+        new ApiResponse(
+            201,
+            createdComment,
+            "Tweet Comment created successfully"
+        )
+    )
+})
+
+// updateComment
+// 1. Kaunsa comment edit karna hai?
+// 2. Comment ID valid hai?
+// 3. Naya content aaya?
+// 4. Empty to nahi?
+// 5. Comment exist karta hai?
+// 6. Kya ye comment isi user ka hai?
+// 7. Deleted comment to nahi?
+// 8. Content update karo
+// 9. isEdited = true karo
+// 10. editedAt save karo
+// 11. Response bhejo
+
+// so the main intution is to we get the updated comment ka content from the request.body and now we have to update the previus comment so for that we havet these upper steps  
+
+const updateComment = asyncHandler(async(req, res) => {
+    // find the commentid 
+    const {commentId} = req.params;
+    const {content} = req.body;
+
+    validateObjectId(commentId);
+
+    // is comment is not empty 
+    if(!content?.trim()){
+        throw new ApiError(
+            400,
+            "Content not found"
+        )
+    }
+
+    // const commentExists = await Comment.exits(
+    //     {
+    //         _id: commentId
+    //     }
+    // )
+    // if(!commentExists){
+    //     throw new ApiError(
+    //         404,
+    //         "Comment not found"
+    //     )
+    // }
+
+    // now we check ki ham usse edite kar sakte hai ya nahi and kya comemtn exits karti bhi hai ya nahi 
+
+    const comment = await Comment.findOne(
+        {
+            _id : commentId,
+            isDeleted : false,
+            owner : req.user._id
+        }
+    )
+
+    // if not found
+    if(!comment){
+        throw new ApiError(
+            404,
+            "Comment not found or you are not allowed to edit the commnet"
+        )
+    }
+
+
+})
