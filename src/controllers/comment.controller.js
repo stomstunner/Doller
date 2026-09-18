@@ -316,7 +316,7 @@ const getCommentReplies = asyncHandler(async(req, res)=> {
         )
     )
 })
-/*
+
 // now we make the addVideoComment controller
 
 // 1. User kya create karna chahta hai?
@@ -385,6 +385,8 @@ const addVideoComment = asyncHandler(async(req, res) => {
         )
     )
 })
+
+/*
 
 const addTweetComment = asyncHandler(async(req, res) => {
     // tweet id 
