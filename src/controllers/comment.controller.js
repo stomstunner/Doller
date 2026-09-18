@@ -440,7 +440,7 @@ const addTweetComment = asyncHandler(async(req, res) => {
         )
     )
 })
-/*
+
 // updateComment
 // 1. Kaunsa comment edit karna hai?
 // 2. Comment ID valid hai?
@@ -484,7 +484,7 @@ const updateComment = asyncHandler(async(req, res) => {
     // }
 
     // now we check ki ham usse edite kar sakte hai ya nahi and kya comemtn exits karti bhi hai ya nahi 
-
+/*
     const comment = await Comment.findOne(
         {
             _id : commentId,
