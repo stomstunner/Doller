@@ -47,6 +47,14 @@ const CommentSchema = new Schema(
             type: Number,
             default: 0,
             min: 0,
+        },
+        isEdited : {
+            type: Boolean,
+            default : false,
+        },
+        editedAt : {
+            type: Date,
+            default : null
         }
 
     },{timestamps: true}
