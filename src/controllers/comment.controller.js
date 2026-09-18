@@ -386,7 +386,7 @@ const addVideoComment = asyncHandler(async(req, res) => {
     )
 })
 
-/*
+
 
 const addTweetComment = asyncHandler(async(req, res) => {
     // tweet id 
@@ -440,7 +440,7 @@ const addTweetComment = asyncHandler(async(req, res) => {
         )
     )
 })
-
+/*
 // updateComment
 // 1. Kaunsa comment edit karna hai?
 // 2. Comment ID valid hai?
