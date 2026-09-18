@@ -14,13 +14,11 @@ const CommentSchema = new Schema(
             type: Schema.Types.ObjectId,
             ref: "Video",
             // default: null is used for optional reference fields like video, tweet, or parentComment. It indicates that no related document is linked yet and allows the same Comment model to be used for different types of comments without requiring every reference field to have a value.
-            required: true,
             default: null,
         },
         tweet:{
             type: Schema.Types.ObjectId,
             ref: "Tweet",
-            required: true,
             default: null,
         },
         owner: {
