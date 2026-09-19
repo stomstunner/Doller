@@ -17,6 +17,10 @@ const likeSchema = new Schema(
         comment: {
             type: Schema.Types.ObjectId,
             ref : "Comment"
+        },
+        playlist: {
+            type: Schema.Types.ObjectId,
+            ref:"Playlist"
         }
     },{timestamps: true}
 )
