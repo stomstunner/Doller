@@ -394,7 +394,7 @@ const addTweetComment = asyncHandler(async(req, res) => {
     // content from req.body
     const {content} = req.body;
     // vlaidate the objectid 
-    validateObjectId(tweetId);
+    validateObjectId(tweetId, "Tweet ID");
 
     if(!content?.trim()){
         throw new ApiError(
@@ -462,7 +462,7 @@ const updateComment = asyncHandler(async(req, res) => {
     // 2 find the content 
     const {content} = req.body;
 
-    validateObjectId(commentId);
+    validateObjectId(commentId, "Comment ID");
 
     // 3 is comment is not empty 
     if(!content?.trim()){
@@ -533,4 +533,120 @@ const updateComment = asyncHandler(async(req, res) => {
         )
     )
 
+})
+
+/*
+6. Check karo request bhejne wala wahi owner hai?
+7. Already pinned hai?
+8. isPinned = true
+9. Save
+10. Response
+*/
+
+// controller for the pin comment 
+const pinComment = asyncHandler(async(req, res) => {
+    // 1. Comment ID lo
+    const {commentId} = req.params;
+    
+    // 2. Comment ID validate karo
+    validateObjectId(commentId, "Comment ID");
+    
+    // 3. Comment find karo
+    const comment = await Comment.findById(commentId);
+
+
+    // comment present hai ya nahi
+    if(!comment){
+        throw new ApiError(
+            404,
+            "comment not found for pin"
+        )
+    }
+    // comment delete toh nahi ho gaya hua hai 
+    if(comment.isDeleted){
+        throw new ApiError(
+            400,
+            "Deleted comment cannot be pinned"
+        )
+    }
+    // comment kahi pahle se hi toh pinned nahi hai
+    if(comment.isPinned){
+        throw new ApiError(
+            400,
+            "Pinned Comment cannot pe pinned Again"
+        )
+    }
+    
+    // 4. Check karo comment video ka hai ya tweet ka
+    // for video 
+    if(comment.video){
+        // now we make a varibale jisme ham video ke owner ko daal denge after finding the video by id
+        // yaha ham comment me kiss video ka refrence hai usse find karnege video ke owner ko select akrnege 
+        const video = await Video
+        .findById(comment.video)
+        .select("owner");
+
+        if(!video){
+            throw new ApiError(
+                404,
+                "Video not found"
+            )
+        }
+
+        // now we ckeck ki kya hamre video ka owner wohi hai jisne hame request bheja hai comment pin karne ke liye 
+        if(video.owner.toString() !== req.user._id.toString()){
+            throw new ApiError(
+                403,
+                "Only video owner can pinned comments"
+            )
+        }
+        
+    }
+    
+    // 5. Video/Tweet owner nikalo
+    // for tweet 
+
+    if(comment.tweet){
+        const tweet = await Tweet
+        .findById(commentId)
+        .select("owner")
+        // ager hamra comment tweet se aa raha hai toh ham toh ham comment ki id se tweet ke ander find karnege aur sirf ham owner ko fetch kar le uska id aayenge 
+
+        if(!tweet){
+            throw new ApiError(
+                404,
+                "Tweet not found"
+            )
+        }
+
+        // now we have to check is that the owner of the tweet is sending request to pin the comment 
+        if(tweet.owner.toString() !== req.user._id.toString()){
+            throw new ApiError(
+                403,
+                "Only tweet owner can pinned comment"
+            )
+        }
+    }
+
+    // 4 now we pinned the comment because it is from the valid source 
+    comment.isPinned = true;
+    await comment.save();
+
+    // now we just have to update the pinned comment 
+    const pinnedComment = await comment.findById(comment._id)
+    .populate(
+        "owner",
+        commentOwnerFields
+    )
+    .lean()
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            pinnedComment,
+            "Comment pinned Successfully"
+        )
+    )
 })
