@@ -50,14 +50,14 @@ app.use(cookieParser())
 
 
 // so we write the api in the versions forms
-app.use("/api/v1/users", userRouter)
+app.use("/api/v1/users", userRouter);
 // after connecting the route in the routes folder we register the comment route in the app 
 
 // http://localhost:8000/api/v1/users/register
 
 // app.use('/users', userRouter)
 
-app.use("api/v1/comments", commentRouter)
+app.use("/api/v1/comments", commentRouter);
 
 
 
