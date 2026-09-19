@@ -39,9 +39,11 @@ const deleteRepliesRecursively = async (parentId) => {
         )
 
         // now we delte the child replay permanently 
-        await Comment.findByIdAndDelete{
+        await Comment.findByIdAndDelete(    
             reply._id
-        }
+        )
+        
+        
     }
 }
 
@@ -353,7 +355,7 @@ const addVideoComment = asyncHandler(async(req, res) => {
     // 1 destructure the videoId from the req.params
     const {videoId} = req.params;
     // 2 extract the contant from  the req.body
-    const {content} = req.body;
+    const {content, parentComment} = req.body;
     // 3 now we validate the object id 
     validateObjectId(videoId, "Video ID");
     // 4 comment khali toh nahi hai 
@@ -384,10 +386,23 @@ const addVideoComment = asyncHandler(async(req, res) => {
             content : content.trim(),
             video: videoId,
             owner : req.user?._id,
-            parentComment: null
+            parentComment: parentComment || null
 
         }
     )
+
+    // now we have to increase the replaycount
+    if(parentComment){
+        await Comment.findByIdAndUpdate(
+            parentComment,
+            {
+                $inc:{
+                    replyCount : 1
+                }
+            }
+        )
+    }
+
     // 8. Owner details populate karke lao
     const createdComment = await Comment.findById(  comment._id )
     .populate(
@@ -415,7 +430,7 @@ const addTweetComment = asyncHandler(async(req, res) => {
     // tweet id 
     const {tweetId} = req.params;
     // content from req.body
-    const {content} = req.body;
+    const {content, parentComment} = req.body;
     // vlaidate the objectid 
     validateObjectId(tweetId, "Tweet ID");
 
@@ -440,10 +455,22 @@ const addTweetComment = asyncHandler(async(req, res) => {
         {
             content : content.trim(),
             tweet: tweetId,
-            parentComment: null,
+            parentComment: parentComment || null,
             owner : req.user._id
         }
     )
+
+    // now we increase the calue of the replay
+    if(parentComment){
+        await Comment.findByIdAndDelete(
+            parentComment,
+            {
+                $inc:{
+                    replyCount : 1
+                }
+            }
+        )
+    }
 
     // now we populate the commetn
     const createdComment = await Comment.findById(comment._id)
@@ -830,14 +857,21 @@ const deleteComment = asyncHandler(async(req, res) => {
     const comment = await Comment.findOne(
         {
             _id : commentId,
-            owner : req.user?._id
+            owner : req.user._id
         }
     )
 
     if(!comment){
         throw new ApiError(
             404,
-            "Comment not found"
+            "Comment not found or you are not allowed to delete the comment"
+        )
+    }
+
+    if(comment.isDeleted){
+        throw new ApiError(
+            404,
+            "Comment is already deleted"
         )
     }
 
@@ -856,10 +890,47 @@ const deleteComment = asyncHandler(async(req, res) => {
     if(!comment.parentComment){
         // comment is a parnet comment 
         // kyuki comment ke ander parnet comment ka vlaue null hai 
+        // parentComment hai toh sare reply delte karo
+        await deleteRepliesRecursively(
+            comment._id
+        )
+        // and delete the root comment also because it is an parent Comment
+
+        await Comment.findByIdAndDelete(comment._id)
     }
     else{
         // ye relpy ke liye hai
         // kyuki parentcomment ke ander koi id store hai 
+        // iss reply ke sare child replay ko delte karo 
+
+        await deleteRepliesRecursively(comment._id)
+
+        // now we delte the soft delte to the current replay
+        comment.isDeleted = true;
+        comment.content = "deleted comment"
+        await comment.save();
+
+        // now we decrease the parent commet ka count 
+        await Comment.findByIdAndUpdate(
+            comment.parentComment,
+            // first argument me woh value jati hai jaisse hame update karna hota hai 
+            {
+                $inc:{
+                    // $inc se increment ya delcremet hota hai value ager -1 hai toh value decrement hogi with -1 aur ager positive vlaue hai toh utne se hi incremtn ho jayegi 
+                    replyCount : -1
+                }
+            }
+        )
     }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {},
+            "Comment deleted Successfully"
+        )
+    )
 
 })
