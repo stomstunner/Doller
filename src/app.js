@@ -6,6 +6,10 @@ import cors from "cors"
 // and the cookieparser
 import cookieParser from "cookie-parser";
 
+import userRouter  from './routes/user.routes.js';
+
+import commentRouter from "./routes/comment.routes.js";
+
 const app = express();
 
 // we use the cors to give the acces to the valid authenticator 
@@ -36,7 +40,6 @@ app.use(cookieParser())
 
 // here we write the routes 
 
-import userRouter  from './routes/user.routes.js'
 
 // so we use the middlewares kyuki ham jaisse hi userroute dalenge url me tab ham uss route ka controll de na chahate hai user router ko and the userrouter will decide ki hamara kya kaam hoga 
 
@@ -49,12 +52,12 @@ import userRouter  from './routes/user.routes.js'
 // so we write the api in the versions forms
 app.use("/api/v1/users", userRouter)
 // after connecting the route in the routes folder we register the comment route in the app 
-app.use("api/v1/comments", commentRouter)
 
 // http://localhost:8000/api/v1/users/register
 
 // app.use('/users', userRouter)
 
+app.use("api/v1/comments", commentRouter)
 
 
 
