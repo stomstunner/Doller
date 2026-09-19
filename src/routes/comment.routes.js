@@ -1,7 +1,8 @@
 // sabse pahle express se router ko import karenge 
+// console.log("Comment Routes Loaded");
 import { Router } from "express";
 // now we import the jwt 
-import { verifyJWT } from "../middlewares/auth.middleware";
+import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 // import all the conrollers from the comment controllers
 import {
@@ -14,7 +15,8 @@ import {
     pinComment,
     unpinComment,
     deleteComment
-} from "../controllers/comment.controller"
+} from "../controllers/comment.controller.js"
+
 
 // router file ko connect karo 
 const router  = Router()
