@@ -9,6 +9,10 @@ const playlistSchema = new Schema({
         type: String,
         required: true
     },
+    saveCount:{
+        type: Number,
+        default: 0
+    },
     // so we store the ids of the videos in an array 
     videos: [
         {
