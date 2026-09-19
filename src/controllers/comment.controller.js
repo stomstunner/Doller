@@ -17,7 +17,8 @@ const validateObjectId = (
 )=>{
     if(!mongoose.isValidObjectId(id)){
         throw new ApiError(
-            400, `invalid ${fieldName}`
+            400, 
+            `invalid ${fieldName}`
         )
     }
 }
