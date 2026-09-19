@@ -987,3 +987,16 @@ const deleteComment = asyncHandler(async(req, res) => {
     )
 
 })
+
+// after completing the conrollers we export them 
+export  {
+    getVideoComments,
+    getTweetComments,
+    getCommentReplies,
+    addVideoComment,
+    addTweetComment,
+    updateComment,
+    pinComment,
+    unpinComment,
+    deleteComment
+}
