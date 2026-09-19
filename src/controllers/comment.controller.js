@@ -381,26 +381,52 @@ const addVideoComment = asyncHandler(async(req, res) => {
     }
 
     // 7 now we create the comment 
+    
+    // now we have to increase the replaycount
+    if(parentComment){
+        
+        validateObjectId(parentComment, "Parent Comment ID")
+        
+        // now we check ki hamra parent comment exits karta hai ya nahi 
+
+        const parentCommentExists = await Comment.exists(
+            {
+                _id: parentComment,
+                video: videoId,
+                isDeleted : false
+            }
+        )
+
+        if(!parentCommentExists){
+            throw new ApiError(
+                404,
+                "Parent Comment Not Found"
+            )
+        }
+
+        
+    }
+
     const comment = await Comment.create(
         {
             content : content.trim(),
             video: videoId,
             owner : req.user?._id,
-            parentComment: parentComment || null
+            parentComment: parentComment ?? null
 
         }
     )
 
-    // now we have to increase the replaycount
     if(parentComment){
+
         await Comment.findByIdAndUpdate(
-            parentComment,
-            {
-                $inc:{
-                    replyCount : 1
+                parentComment,
+                {
+                    $inc:{
+                        replyCount : 1
+                    }
                 }
-            }
-        )
+            )
     }
 
     // 8. Owner details populate karke lao
@@ -451,18 +477,45 @@ const addTweetComment = asyncHandler(async(req, res) => {
 
     // now we create the comment for the tweet
 
-    const comment = await Comment.create(
+  
+
+    // now we increase the calue of the replay
+    if(parentComment){
+
+        validateObjectId(parentComment, "Parent Comment ID")
+
+        // now we check ki hamra parent comment exits karta hai ya nahi 
+
+        const parentCommentExists = await Comment.exists(
+            {
+                _id: parentComment,
+                tweet : tweetId,
+                isDeleted : false
+            }
+        )
+
+        if(!parentCommentExists){
+            throw new ApiError(
+                404,
+                "Parent Comment Not Found"
+            )
+        }
+
+
+    }
+
+      const comment = await Comment.create(
         {
             content : content.trim(),
             tweet: tweetId,
-            parentComment: parentComment || null,
+            parentComment: parentComment ?? null,
             owner : req.user._id
         }
     )
 
-    // now we increase the calue of the replay
     if(parentComment){
-        await Comment.findByIdAndDelete(
+        
+        await Comment.findByIdAndUpdate(
             parentComment,
             {
                 $inc:{
