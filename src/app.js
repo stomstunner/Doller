@@ -48,6 +48,8 @@ import userRouter  from './routes/user.routes.js'
 
 // so we write the api in the versions forms
 app.use("/api/v1/users", userRouter)
+// after connecting the route in the routes folder we register the comment route in the app 
+app.use("api/v1/comments", commentRouter)
 
 // http://localhost:8000/api/v1/users/register
 
