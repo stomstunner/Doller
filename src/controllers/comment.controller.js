@@ -17,7 +17,7 @@ const validateObjectId = (
 )=>{
     if(!mongoose.isValidObjectId(id)){
         throw new ApiError(
-            400, invalid `${fieldName}`
+            400, `invalid ${fieldName}`
         )
     }
 }
@@ -608,7 +608,7 @@ const pinComment = asyncHandler(async(req, res) => {
 
     if(comment.tweet){
         const tweet = await Tweet
-        .findById(commentId)
+        .findById(comment.tweet)
         .select("owner")
         // ager hamra comment tweet se aa raha hai toh ham toh ham comment ki id se tweet ke ander find karnege aur sirf ham owner ko fetch kar le uska id aayenge 
 
@@ -633,7 +633,7 @@ const pinComment = asyncHandler(async(req, res) => {
     await comment.save();
 
     // now we just have to update the pinned comment 
-    const pinnedComment = await comment.findById(comment._id)
+    const pinnedComment = await Comment.findById(comment._id)
     .populate(
         "owner",
         commentOwnerFields
@@ -647,6 +647,115 @@ const pinComment = asyncHandler(async(req, res) => {
             200,
             pinnedComment,
             "Comment pinned Successfully"
+        )
+    )
+})
+
+// now we make the controller for the unpining the comment 
+
+const unpinComment = asyncHandler(async(req, res) => {
+    // first of all we fetch the id from the req.param
+    const {commentId} = req.params;
+
+    // now we validate the object id ki woh sahi hai ya nahi 
+    validateObjectId(commentId , "Comment ID");
+
+    // now we fetch the comment through its id from the schema comment
+    const comment  = await Comment.findById(commentId);
+
+    if(!comment){
+        throw new ApiError(
+            404,
+            "Comment not found"
+        )
+    }
+
+    // now we check ki hamara comment delete toh nahi hai 
+    if(comment.isDeleted){
+        throw new ApiError(
+            400,
+            "Comment is deleted"
+        )
+    }
+    // now we check ki hamra comment kahi pahle se hi toh unpinned nahi hai 
+    if(!comment.isPinned){
+        throw new ApiError(
+            400,
+            "Comment is not pinned"
+        )
+    }
+    // now we chekc ki hamra comment video ka comment hai ya tweet ka comment  hai 
+
+    // for video 
+    if(comment.video){
+        // now we find the owner of the video if the comment is from the video 
+        // from COmment model schema
+        const video  = await Video
+        .findById(comment.video)
+        .select("owner")
+
+        if(!video){
+            throw new ApiError(
+                404,
+                "Video not found"
+            )
+        }
+
+        // now we check the owner is same or not 
+        if(video.owner.toString() !== req.user._id.toString()){
+            throw new ApiError(
+                403,
+                "Only owner can unpinned the comment"
+            )
+        }
+    }
+
+    // now we check for the tweet 
+    // ager comment ke ander tweet ka vlau null nahi hua toh 
+    if(comment.tweet){
+
+        // now we extract the tweet from the commet.tweet
+        const tweet = await Tweet
+        .findById(comment.tweet)
+        .select("owner")
+
+        // now we check ki tweet exits karti bhi hai ya nahi 
+        if(!tweet){
+            throw new ApiError(
+                404,
+                "Tweet not found"
+            )
+        }
+
+        // now we check the owner is same 
+        if(tweet.owner.toString() !== req.user._id.toString()){
+            throw new ApiError(
+                403,
+                "Only owner can unpin the comment"
+            )
+        }
+    }
+
+    // not we mark the comment unpinned 
+    comment.isPinned = false
+    await comment.save()
+
+    // now we make the unpinned comment and populate the comment 
+    const unpinnedComment = await Comment.findById(comment._id)
+    .populate(
+        "owner",
+        commentOwnerFields
+    )
+    .lean()
+
+    // return the response 
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            unpinnedComment,
+            "Comment unpinned Successfully"
         )
     )
 })
