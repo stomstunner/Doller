@@ -533,12 +533,13 @@ isPinned = true
     response
 
 ---
-
 ``` jsx
+
+
 // PATCH /api/v1/comments/:commentId/pin
 
 const pinComment = asyncHandler(async (req, res) => {
-
+    
     // 1. Comment ID nikalo
     const { commentId } = req.params
 
@@ -631,7 +632,7 @@ const pinComment = asyncHandler(async (req, res) => {
         ).select("owner")
 
         if (!tweet) {
-
+            
             throw new ApiError(
                 404,
                 "Tweet not found"
@@ -679,4 +680,38 @@ const pinComment = asyncHandler(async (req, res) => {
             )
         )
 })  
+
 ```
+
+---
+
+# deleteComment
+
+- Validate karo
+- Comment ID lo
+- Comment find karo
+- Comment exist karta hai?
+- Kya ye comment isi user ka hai?
+- Already deleted to nahi?
+- isDeleted = true
+- content = "Comment deleted"
+- Agar reply tha to parent ka replyCount kam karo
+- Save
+- Response
+
+- Comment ID lo
+- Validate karo
+- Comment find karo
+- Owner check karo
+
+- Kya ye top level comment hai?
+
+       YES
+        ↓
+Poora thread delete karo
+
+         NO
+        ↓
+    Soft delete current reply
+        ↓
+     Iske niche ke saare replies delete karo
