@@ -494,3 +494,189 @@ const updateComment = asyncHandler(async (req, res) => {
 })
 ```
 
+
+
+
+# pinComment
+
+- Kaunsa comment pin karna hai?
+- Comment ID valid hai?
+- Comment exist karta hai?
+- Comment video ka hai ya tweet ka?
+- Us video/tweet ka owner kaun hai?
+- Request bhejne wala user owner hai?
+- Comment already pinned to nahi?
+- isPinned = true
+- Save
+- Response
+
+---
+commentId
+    ↓
+ Validate
+    ↓
+ Find Comment
+    ↓
+   Video ?
+ ↓         ↓
+Yes       No
+ ↓         ↓
+Video     Tweet
+Owner     Owner
+ ↓         ↓
+Permission Check
+       ↓
+isPinned = true
+       ↓
+    save()
+       ↓
+    response
+
+---
+
+``` jsx
+// PATCH /api/v1/comments/:commentId/pin
+
+const pinComment = asyncHandler(async (req, res) => {
+
+    // 1. Comment ID nikalo
+    const { commentId } = req.params
+
+    // 2. Validate Comment ID
+    validateObjectId(commentId, "Comment ID")
+
+    // 3. Comment find karo
+    const comment = await Comment.findById(commentId)
+
+    if (!comment) {
+
+        throw new ApiError(
+            404,
+            "Comment not found"
+        )
+    }
+
+    // Deleted comment pin nahi ho sakta
+    if (comment.isDeleted) {
+
+        throw new ApiError(
+            400,
+            "Deleted comment cannot be pinned"
+        )
+    }
+
+    // Already pinned?
+    if (comment.isPinned) {
+
+        throw new ApiError(
+            400,
+            "Comment is already pinned"
+        )
+    }
+
+    // ------------------------
+    // Video Comment
+    // ------------------------
+
+    if (comment.video) {
+        // kya comment kisi video se linked hai?
+
+        const video = await Video.findById(
+            comment.video
+            // toh hamne do tum comment ke video ka vlaue jo ki ek id hai 
+            // Video.findById("video456")
+        ).select("owner")
+
+//         {
+//     _id: "comment123",
+
+//     content: "Nice Video",
+
+//     owner: "rahulId",
+
+//     video: "video456",
+// kya comment kisi video se linked hai 
+
+//     tweet: null
+// }
+
+        if (!video) {
+
+            throw new ApiError(
+                404,
+                "Video not found"
+            )
+        }
+
+        if (
+            video.owner.toString() !==
+            req.user._id.toString()
+        ) {
+
+            throw new ApiError(
+                403,
+                "Only video owner can pin comments"
+            )
+        }
+    }
+
+    // ------------------------
+    // Tweet Comment
+    // ------------------------
+
+    else if (comment.tweet) {
+
+        const tweet = await Tweet.findById(
+            comment.tweet
+        ).select("owner")
+
+        if (!tweet) {
+
+            throw new ApiError(
+                404,
+                "Tweet not found"
+            )
+        }
+
+        if (
+            tweet.owner.toString() !==
+            req.user._id.toString()
+        ) {
+
+            throw new ApiError(
+                403,
+                "Only tweet owner can pin comments"
+            )
+        }
+    }
+
+    // 4. Pin Comment
+    comment.isPinned = true
+
+    await comment.save()
+
+    // 5. Updated Comment lao
+    const pinnedComment =
+        await Comment.findById(comment._id)
+            .populate(
+                "owner",
+                commentOwnerFields
+            )
+            .lean()
+
+    // 6. Response
+    return res
+        .status(200)
+        .json(
+
+            new ApiResponse(
+
+                200,
+
+                pinnedComment,
+
+                "Comment pinned successfully"
+            )
+        )
+})  
+```
