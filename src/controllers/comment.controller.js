@@ -22,7 +22,28 @@ const validateObjectId = (
     }
 }
 
-// here
+// here we make the helper function for deleteRepliesRecursively
+const deleteRepliesRecursively = async (parentId) => {
+    // 1 parent ke direct reply ham layenge top level replay
+    const replies = await Comment.find(
+        {
+            parentComment : parentId
+            // jo hame parent id mila hai parameter se usse ham uske parentcomment dhundenge from the comment schema
+        }
+    )
+
+    // so in the replies we have multiple document for the reply for fetching and working one by one we apply the loop 
+    for(const reply of replies){
+        await deleteRepliesRecursively(
+            reply._id
+        )
+
+        // now we delte the child replay permanently 
+        await Comment.findByIdAndDelete{
+            reply._id
+        }
+    }
+}
 
 // now we make a varibale that holds the data ki jo populate karte time help kare ki user ki kon sa field frontend pe bheji hai 
 
