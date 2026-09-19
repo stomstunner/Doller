@@ -22,6 +22,8 @@ const validateObjectId = (
     }
 }
 
+// here
+
 // now we make a varibale that holds the data ki jo populate karte time help kare ki user ki kon sa field frontend pe bheji hai 
 
 const commentOwnerFields = "username fullName avatar"
@@ -758,4 +760,85 @@ const unpinComment = asyncHandler(async(req, res) => {
             "Comment unpinned Successfully"
         )
     )
+})
+
+
+// now we make the contoller for the delete the coment we just make the comment soft delete frontend pe show hoga ki comment delte hua hai 
+
+// 1. Comment ID lo
+// 2. Validate karo
+// 3. Comment find karo
+// 4. Comment exist karta hai?
+// 5. Kya ye comment isi user ka hai?
+// 6. Already deleted to nahi?
+// 7. isDeleted = true
+// 8. content = "Comment deleted"
+// 9. Agar reply tha to parent ka replyCount kam karo
+// 10. Save
+// 11. Response
+
+// 1. Comment ID lo
+// 2. Validate karo
+// 3. Comment find karo
+// 4. Owner check karo
+
+// 5. Kya ye top level comment hai?
+
+//     YES
+//         ↓
+//         Poora thread delete karo
+
+//     NO
+//         ↓
+//         Soft delete current reply
+//         ↓
+//         Iske niche ke saare replies delete karo
+
+const deleteComment = asyncHandler(async(req, res) => {
+
+    // find the comment id 
+    const {commentId } = req.params;
+
+    // validate the commentid 
+    validateObjectId(
+        commentId,
+        "Comment ID"
+    )
+
+    // now we find the comment ki commetn exits karna chaiye with uska owner is same as the requester
+    const comment = await Comment.findOne(
+        {
+            _id : commentId,
+            owner : req.user?._id
+        }
+    )
+
+    if(!comment){
+        throw new ApiError(
+            404,
+            "Comment not found"
+        )
+    }
+
+    // now we make the code for the rootComment and reply
+    //     Reply ko preserve karna hai
+
+    // Taaki frontend pe dikha saku:
+
+    // "Comment Deleted"
+
+    // Lekin uske niche ki conversation ka
+    // ab koi context nahi bacha
+
+    // To uske saare children hata do
+
+    if(!comment.parentComment){
+        // comment is a parnet comment 
+        // kyuki comment ke ander parnet comment ka vlaue null hai 
+    }
+    else{
+        // ye relpy ke liye hai
+        // kyuki parentcomment ke ander koi id store hai 
+    }
+
 })
