@@ -383,7 +383,8 @@ const getLikedVideos = asyncHandler(async(req, res) => {
                     // match kisse karna hai 
                     likedBy: new mongoose.Types.ObjectId(req.user._id),
                     video : {
-                        $exists : true
+                        $exists : true,
+                        $ne : null
                     }
                 }
             },
@@ -495,14 +496,52 @@ const getLikedVideos = asyncHandler(async(req, res) => {
     );
 
     // now we find the total count of the how many we have the videos that we like them 
-    const totalLikedVideos = await Like.countDocuments(
-        {
-            likedBy: req.user._id,
-            video: {
-                $exists: true
+    // const totalLikedVideos = await Like.countDocuments(
+    //     {
+    //         likedBy: req.user._id,
+    //         video: {
+    //             $exists: true
+    //         }
+    //     }
+    // );
+
+        const totalCountResult = await Like.aggregate(
+            [ 
+                {
+                    $match: filter
+                },
+
+                {
+                    $lookup: {
+                        from: "videos",
+                        localField: "video",
+                        foreignField: "_id",
+                        as: "video",
+                        pipeline: [
+                            {
+                                $match: {
+                                    isDeleted: false,
+                                    isPublished: true,
+                                    ...(search && {
+                                        title: {
+                                            $regex: search,
+                                            $options: "i"
+                                        }
+                                    })
+                                }
+                            }
+                    ]
+                }
+            },
+            {
+                $unwind: "$video"
+            },
+            {
+                $count: "totalLikedVideos"
             }
-        }
-    );
+        ]);
+
+    const totalLikedVideos = totalCountResult[0]?.totalLikedVideos || 0;
 
     // now we send the response of the likedVideos 
     return res
@@ -513,7 +552,7 @@ const getLikedVideos = asyncHandler(async(req, res) => {
             {
                 videos : likedVideos,
                 page,
-                limt,
+                limit,
                 totalLikedVideos,
                 totalPages : Math.ceil(
                     totalLikedVideos / limit
