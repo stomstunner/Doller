@@ -173,3 +173,80 @@ const toggleCommentLike = asyncHandler(async(req, res) => {
         )
     )
 })
+
+// now we make the toggleTweetLike
+const toggleTweetLike = asyncHandler(async(req, res) => {
+    // find the tweetId 
+    const {tweetId} = req.params;
+
+    // now we validate the tweetId object 
+    validateObjectId(
+        tweetId,
+        "Tweet ID"
+    )
+
+    // now we see ki hamara tweet exist karta bhi hai ya nahi 
+    const tweetExists = await Tweet.exists(
+        {
+            _id:tweetId
+        }
+    );
+
+    // if tweet does not exits then,
+    if(!tweetExists){
+        throw new ApiError(
+            404,
+            "Tweet not found"
+        )
+    }
+
+    // now we find in the Like database ki hamare pass kahi isi tweet pe like toh nahi hai na 
+    const existingLike = await Like.findOne(
+        {
+            tweet : tweetId,
+            // now we ckeck who liked it is it the requester 
+            likedBy: req.user._id
+        }
+    )
+
+    // now we write code on the basis of weather the exitng like is true or false 
+    // if exiting like is avalble matab usme kuch data aaya hai databse se then  
+    if(existingLike){
+        await Like.findByIdAndDelete(
+            existingLike._id 
+        )
+
+        // now we send the response 
+        return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    liked : false
+                },
+                "Tweet unliked Successfully"
+            )
+        )
+    }
+
+    // now if we are here then we dont have the data for the exiting like then it means we now have to create the like tweet 
+    await Like.create(
+        {
+            tweet: tweetId,
+            likedBy: req.user._id
+        }
+    )
+    // now we send the response 
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                liked : true
+            },
+            "Tweet Liked Successfully"
+        )
+    )
+})
