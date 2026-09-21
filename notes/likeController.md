@@ -506,7 +506,7 @@ Response
 
 ----
 
-``` 
+``` jsx
 const getLikedVideos = asyncHandler(async (req, res) => {
 
     // Pagination
@@ -711,5 +711,253 @@ const getLikedVideos = asyncHandler(async (req, res) => {
         );
 });
 ```
+---
 
-h
+# getLikedComments
+
+``` jsx
+const getLikedComments = asyncHandler(async (req, res) => {
+
+    // Pagination
+
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    );
+
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 20,
+            1
+        ),
+        100
+    );
+
+    const skip = (page - 1) * limit;
+
+    // Search
+
+    const search = req.query.search?.trim() || "";
+
+    // Sorting
+
+    let sortOptions = {
+        createdAt: -1
+    };
+
+    // Filter
+
+    const filter = {
+
+        likedBy: new mongoose.Types.ObjectId(
+            req.user._id
+        ),
+
+        comment: {
+            $exists: true,
+            $ne: null
+        }
+    };
+
+    // Aggregate
+
+    const likedComments = await Like.aggregate([
+
+        {
+            $match: filter
+        },
+
+        {
+            $lookup: {
+
+                from: "comments",
+
+                localField: "comment",
+
+                foreignField: "_id",
+
+                as: "comment",
+
+                pipeline: [
+
+                    {
+                        $match: {
+
+                            isDeleted: false,
+
+                            ...(search && {
+
+                                content: {
+
+                                    $regex: search,
+                                    $options: "i"
+                                }
+                            })
+                        }
+                    },
+
+                    {
+                        $lookup: {
+
+                            from: "users",
+
+                            localField: "owner",
+
+                            foreignField: "_id",
+
+                            as: "owner",
+
+                            pipeline: [
+
+                                {
+                                    $project: {
+
+                                        fullName: 1,
+                                        username: 1,
+                                        avatar: 1
+                                    }
+                                }
+                            ]
+                        }
+                    },
+
+                    {
+                        $addFields: {
+
+                            owner: {
+                                $first: "$owner"
+                            }
+                        }
+                    },
+
+                    {
+                        $project: {
+
+                            content: 1,
+
+                            owner: 1,
+
+                            video: 1,
+
+                            tweet: 1,
+
+                            parentComment: 1,
+
+                            replyCount: 1,
+
+                            isPinned: 1,
+
+                            createdAt: 1
+                        }
+                    }
+                ]
+            }
+        },
+
+        {
+            $unwind: "$comment"
+        },
+
+        {
+            $replaceRoot: {
+                newRoot: "$comment"
+            }
+        },
+
+        {
+            $sort: sortOptions
+        },
+
+        {
+            $skip: skip
+        },
+
+        {
+            $limit: limit
+        }
+    ]);
+
+    // Total Count
+
+    const totalCountResult = await Like.aggregate([
+
+        {
+            $match: filter
+        },
+
+        {
+            $lookup: {
+
+                from: "comments",
+
+                localField: "comment",
+
+                foreignField: "_id",
+
+                as: "comment",
+
+                pipeline: [
+
+                    {
+                        $match: {
+
+                            isDeleted: false,
+
+                            ...(search && {
+
+                                content: {
+
+                                    $regex: search,
+                                    $options: "i"
+                                }
+                            })
+                        }
+                    }
+                ]
+            }
+        },
+
+        {
+            $unwind: "$comment"
+        },
+
+        {
+            $count: "totalLikedComments"
+        }
+    ]);
+
+    const totalLikedComments =
+        totalCountResult[0]?.totalLikedComments || 0;
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    comments: likedComments,
+
+                    page,
+
+                    limit,
+
+                    totalLikedComments,
+
+                    totalPages: Math.ceil(
+                        totalLikedComments / limit
+                    ),
+
+                    hasNextPage:
+                        page * limit <
+                        totalLikedComments
+                },
+                "Liked Comments Fetched Successfully"
+            )
+        );
+});
+
+```
+---
+
+---
+
