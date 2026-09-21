@@ -342,7 +342,7 @@ const getLikedVideos = asyncHandler(async(req, res) => {
             1
         ),
         100
-    )
+    );
 
     // now we warite the skip variable 
     const skip = (page - 1) * limit;
@@ -560,6 +560,203 @@ const getLikedVideos = asyncHandler(async(req, res) => {
                 hasNextPage : (page * limit) < totalLikedVideos
             },
             "Liked Videos Fetched Successfully"
+        )
+    )
+})
+
+// lets make the controller for the get like comments 
+const getLikedComments = asyncHandler(async(req, res) => {
+    // lets make the important variable for the use of the pagination 
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    );
+
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 1,
+            20
+        ),
+        100
+    );
+
+    const skip = (page - 1) * limit;
+
+    // lets create the search 
+    const search = req.query.search?.trim() || "";
+    // ager query me search hua toh trim kar ke serach me daal do warna usse empty rakho 
+
+
+    // now we create the searchOptions 
+
+    const searchOptions = {
+        createdAt : -1
+    }
+
+    // now we make the condition ager sort laga toh kya karte 
+
+
+    // lets make the filter 
+    const filter = {
+        likedBy : new mongoose.Types.ObjectId(
+            req.user._id
+        ),
+        comment: {
+            $exists : true,
+            $ne : null
+        }
+    }
+
+    // now we write the code for the aggreation of the getliked comments 
+    const likedComments = await Like.aggregate(
+        [
+            // first pipeline 
+            {
+                $match : filter
+            },
+            // now we write the lookup ki kisme se data laana hai 
+            {
+                $lookup:{
+                        from: "comments",
+                        localField : "comment",
+                        foreignField : "_id",
+                        as : "comment",
+                        pipeline: [
+                            // here we have the data from the comment then we go the user and find the user information and aplly the first sort ki kiss uer ka comment pe hame lookup lagana hai 
+                            {
+                                $match : {
+                                    isDeleted : false,
+
+                                    // now conditional object spread 
+                                    ...(search && {
+                                        content : {
+                                            $regex : search,
+                                            $options : "i"
+                                        }
+                                    })
+                                }
+                            },
+                            // now here  we go to the user in the comments 
+                            {
+                                $lookup: {
+                                    from: "users",
+                                    localField : "owner",
+                                    foreignField: "_id",
+                                    as: "owner",
+                                    // further we want only the selected field from the user 
+                                    pipeline: [
+                                        {
+                                            $project : {
+                                                fullName : 1,
+                                                username: 1,
+                                                avatar : 1
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            // ab ham user ke ander se lookup karne pe hame array aayega but i want a object then we want to make it we get the first array 
+                            {
+                                $addFields: {
+                                    owner:{
+                                        $first : "owner"
+                                    }
+                                }
+                            },
+                            // ab jab hamare pass selected user aa gaya toh ham bass project kanrge selected fileds 
+                            {
+                                $project: {
+                                    content : 1,
+                                    owner : 1,
+                                    video : 1,
+                                    tweet : 1,
+                                    parentComment : 1,
+                                    replycount : 1,
+                                    isPinned : 1,
+                                    createdAt: 1
+                                }
+                            }
+                        ]
+
+                }
+            },
+            // now we make the top level aggregation 
+            {
+                $unwind : "$comment"
+            },
+            {
+                $replaceRoot : {
+                    $newRoot: "$comment"
+                }
+            },
+            {
+                $sort : searchOptions
+            },
+            {
+                $skip: skip
+            },
+            {
+                $limit : limit
+            }
+        ]
+    );
+
+    // now we want totalCountResult
+    const totalCountResult = await Like.aggregate(
+        [
+            // now we apply the pipeline
+            {
+                $match: filter
+            },
+            {
+                $lookup: {
+                    from: "comments",
+                    localField: "comment",
+                    foreignField: "_id",
+                    as: "comment",
+                    pipeline:[
+                        {
+                            $match:{
+                                isDeleted: false,
+
+                                ...(search && {
+                                    content : {
+                                        $regex : search,
+                                        $options: "i"
+                                    }
+                                })
+                            }
+                        }
+                    ]
+                }
+            },
+            // lest unwind the data 
+            {
+                $unwind : "$comment"
+            },
+            {
+                $count : "totalLikedComments"
+            }
+        ]
+    );
+
+    // now we find the total liked comments 
+    const totalLikedComments = totalCountResult[0]?.totalLikedComments || 0;
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                comments : likedComments,
+                page,
+                limit,
+                totalLikedComments,
+                totalPages : Math.ceil(totalLikedComments / limit),
+                hasNextPage : (page * limit) < totalLikedComments
+            },
+            "Liked Comment fetched Successfully"
         )
     )
 })
