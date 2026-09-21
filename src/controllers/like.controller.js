@@ -98,3 +98,78 @@ const toggleVideoLike = asyncHandler(async(req, res) => {
 })
 
 // now lets make the toggleCommentLike with same intution 
+const toggleCommentLike = asyncHandler(async(req, res) => {
+
+    // find id 
+    const {commentId} = req.params;
+
+    // validate obejct id 
+    validateObjectId(
+        commentId,
+        "Comment ID"
+    )
+
+    // comment exits or not 
+    const commentExists = await Comment.exists(
+        {
+            _id: commentId,
+            isDeleted : false
+        }
+    )
+
+    // error for not found 
+    if(!commentExists){
+        throw new ApiError(
+            404,
+            "Comment not found"
+        )
+    }
+
+    // check ki hamra pahle se hi toh like nahi hai 
+    const existingLike = await Like.findOne(
+        // kya woh comment ka hi like hai aur kya user bhi same hai 
+        {
+            comment:commentId,
+            likedBy : req.user._id,
+        }
+    )
+
+    // now if we have any data in the exiting like then it means ki hamare pass pahle se hi iss comment pe like tha iss user dwara 
+    // toh unlike kar do ab 
+    if(existingLike){
+        await Like.findByIdAndDelete(
+            existingLike._id  
+        )
+
+        return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    liked: false
+                },
+                "Comment unliked Successfully"
+            )
+        )
+    }
+
+    await Like.create(
+        {
+            comment: commentId,
+            likedBy : req.user._id
+        }
+    )
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                liked : true
+            },
+            "Comment liked Successfully"
+        )
+    )
+})
