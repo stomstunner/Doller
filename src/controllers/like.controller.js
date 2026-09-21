@@ -250,3 +250,79 @@ const toggleTweetLike = asyncHandler(async(req, res) => {
         )
     )
 })
+
+// now we write the controller for the togglePlaylistLike
+
+const togglePlaylistLike = asyncHandler(async(req, res) => {
+    // find the playlist object id 
+    const {playlistId} = req.params;
+
+    // now we validate the object id 
+    validateObjectId(
+        playlistId,
+        "Playlist ID"
+    );
+
+    // now we ckeck the playlist exits or not 
+    const playlistExists = await Playlist.exists(
+        {
+            _id: playlistId
+        }
+    )
+
+    // error handling
+    if(!playlistExists){
+        throw new ApiError(
+            404,
+            "Playlist not found"
+        )
+    }
+
+    // now we check ki phale se hi toh like nahi hai playlist pe 
+    const existingLike = await Playlist.findOne(
+        {
+            _id : playlistId,
+            likedBy: req.user._id
+        }
+    )
+
+    // now we write the code if there is a like present 
+    if(existingLike){
+        await Like.findByIdAndDelete(
+            existingLike._id
+        )
+
+        // and send the response 
+        return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    liked : false
+                },
+                "Playlist unliked Successfully"
+            )
+        )
+    }
+
+    // if we are here means our playlist havnt any like yet 
+    await Playlist.create(
+        {
+            _id: playlistId,
+            likedBy: req.user._id
+        }
+    )
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                liked : true
+            },
+            "Playlist liked Successfully"
+        )
+    )
+})
