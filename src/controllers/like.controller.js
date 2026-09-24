@@ -564,6 +564,192 @@ const getLikedVideos = asyncHandler(async(req, res) => {
     )
 })
 
+// now we make the getLikedTweets 
+const getLikedTweets = asyncHandler(async(req, res) => {
+    // now we make the important variables that are usefull for the pagination
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    )
+
+    // lets make the limit
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 20,
+            1
+        ),
+        100
+    )
+
+    // skip 
+    const skip = (page - 1) * limit ;
+
+    const search = req.query.search?.trim() || "";
+
+    // sorting option 
+    let sortOptions = {
+        createdAt : -1
+    }
+
+    const filter = {
+        likedBy: new mongoose.Types.ObjectId(
+            req.user._id
+        ),
+        tweet : {
+            $exists : true,
+            $ne : null
+        }
+    }
+
+    // now we make the aggragete pipleine 
+    const likedTweets = await Like.aggregate(
+        [
+            // here we write our first pipleine 
+            {
+                $match: filter
+            },
+            {
+                $lookup:{
+                    from: "tweets",
+                    localField : "tweet",
+                    foreignField: "_id",
+                    as: "tweet",
+                    pipeline: [
+                        // ab pipeline ke ander ham aggreation lageneg ki ham toh abhi tweet mai toh hai but mujhe ab user me jana hai kyuki mujhe apne owner ka data display karna hai 
+                        {
+                            $match: {
+                                isDeleted: false,
+                                ...(search && {
+                                    content: {
+                                        $regex: search,
+                                        $options: "i"
+                                    }
+                                })
+                            }
+                        },
+                        // now we write the lookup for going to user model 
+                        {
+                            $lookup: {
+                                from : "users",
+                                localField: "owner",
+                                foreignField: "_id",
+                                as: "owner",
+                                pipeline: [
+                                    // now we want ki hame kya kya owner me se aage bhejna hai 
+                                    {
+                                        $projects:{
+                                            fullName: 1,
+                                            username: 1,
+                                            avatar: 1
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        // now in the tweet we write the code to get the owner details in the owner so we do not have to write array becaese the pipleinein the user gives us a array of objects 
+                        {
+                            $addFields: {
+                                owner: {
+                                    $first: "$owner"
+                                }
+                            }
+                        },
+                        {
+                            // now what contant we want from the tweet , here we project all things
+                            $project : {
+                                content: 1,
+                                owner: 1,
+                                replycount: 1,
+                                isEdited: 1,
+                                createdAt: 1,
+                                isEdited: 1,
+                                editedAt: 1,
+                                updatedAt: 1,
+                            }
+                        }
+                    ]
+                }
+            },
+            // now here we write the top level aggeration 
+            {
+                $unwind: "$tweet"
+            },
+            {
+                $replaceRoot: {
+                    newRoot: "$tweet"
+                }
+            },
+            {
+                $sort: sortOptions
+            },
+            {
+                $skip : skip
+            },
+            {
+                $limit: limit
+            }
+        ]
+    );
+
+    // now we find the total count of the likes
+
+    const totalCountResult = await Like.aggregate(
+        [
+            {
+                $match: filter
+            },
+            {
+                $lookup: {
+                    from: "tweets",
+                    localField: "tweet",
+                    foreignField: "_id",
+                    as: "tweet",
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: false,
+
+                                ...(search && {
+                                    content : {
+                                        $regex: search,
+                                        $options: "i"
+                                    }
+                                })
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $unwind: "$tweet"
+            },
+            {
+                $count: "totalLikedTweets"
+            }
+        ]
+    );
+
+    // now we find the totalLikedTweets 
+    const totalLikedTweets = totalCountResult[0]?.totalLikedTweets || 0;
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200, 
+            {
+                tweets: likedTweets,
+                page,
+                limit,
+                totalLikedTweets,
+                totalPages: Math.ceil( totalLikedTweets / limit),
+                hasNextPage:(page * limit) < totalLikedTweets
+            },
+            "Liked Tweet fetched Successfully"
+        )
+    )
+})
+
 // lets make the controller for the get like comments 
 const getLikedComments = asyncHandler(async(req, res) => {
     // lets make the important variable for the use of the pagination 
@@ -574,8 +760,8 @@ const getLikedComments = asyncHandler(async(req, res) => {
 
     const limit = Math.min(
         Math.max(
-            Number.parseInt(req.query.limit) || 1,
-            20
+            Number.parseInt(req.query.limit) || 20,
+            1
         ),
         100
     );
