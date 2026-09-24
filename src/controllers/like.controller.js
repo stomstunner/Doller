@@ -279,9 +279,9 @@ const togglePlaylistLike = asyncHandler(async(req, res) => {
     }
 
     // now we check ki phale se hi toh like nahi hai playlist pe 
-    const existingLike = await Playlist.findOne(
+    const existingLike = await Like.findOne(
         {
-            _id : playlistId,
+            playlist : playlistId,
             likedBy: req.user._id
         }
     )
@@ -307,9 +307,9 @@ const togglePlaylistLike = asyncHandler(async(req, res) => {
     }
 
     // if we are here means our playlist havnt any like yet 
-    await Playlist.create(
+    await Like.create(
         {
-            _id: playlistId,
+            playlist: playlistId,
             likedBy: req.user._id
         }
     )
@@ -483,7 +483,7 @@ const getLikedVideos = asyncHandler(async(req, res) => {
             },
             // now we apply the sort 
             {
-                $sort : sortoptions
+                $sort : sortOptions
             },
             // now we write the skip for the pagination 
             {
@@ -508,7 +508,15 @@ const getLikedVideos = asyncHandler(async(req, res) => {
         const totalCountResult = await Like.aggregate(
             [ 
                 {
-                    $match: filter
+                    $match: {
+                        likedBy : new mongoose.Types.ObjectId(
+                            req.user._id
+                        ),
+                        video : {
+                            $exists : true,
+                            $ne : null
+                        }
+                    }
                 },
 
                 {
@@ -659,10 +667,9 @@ const getLikedTweets = asyncHandler(async(req, res) => {
                             $project : {
                                 content: 1,
                                 owner: 1,
-                                replycount: 1,
+                                replyCount: 1,
                                 isEdited: 1,
                                 createdAt: 1,
-                                isEdited: 1,
                                 editedAt: 1,
                                 updatedAt: 1,
                             }
@@ -845,7 +852,7 @@ const getLikedComments = asyncHandler(async(req, res) => {
                             {
                                 $addFields: {
                                     owner:{
-                                        $first : "owner"
+                                        $first : "$owner"
                                     }
                                 }
                             },
@@ -857,7 +864,7 @@ const getLikedComments = asyncHandler(async(req, res) => {
                                     video : 1,
                                     tweet : 1,
                                     parentComment : 1,
-                                    replycount : 1,
+                                    replyCount : 1,
                                     isPinned : 1,
                                     createdAt: 1
                                 }
@@ -872,7 +879,7 @@ const getLikedComments = asyncHandler(async(req, res) => {
             },
             {
                 $replaceRoot : {
-                    $newRoot: "$comment"
+                    newRoot: "$comment"
                 }
             },
             {
@@ -1133,3 +1140,14 @@ const getSavedPlaylists = asyncHandler(async(req, res) => {
         )
     )
 })
+
+export {
+    toggleVideoLike,
+    toggleCommentLike,
+    toggleTweetLike,
+    togglePlaylistLike,
+    getLikedVideos,
+    getLikedTweets,
+    getLikedComments,
+    getSavedPlaylists
+}
