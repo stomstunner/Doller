@@ -3,15 +3,38 @@ import mongoose,{Schema} from "mongoose";
 const playlistSchema = new Schema({
     name: {
         type: String,
-        required: true 
+        required: true ,
+        minLength: 1,
+        maxLength: 100,
+        trim: true,
     },
     description: {
         type: String,
-        required: true
+        required: [true, "Playlist description is required"],
+        maxLength: 500,
     },
     saveCount:{
         type: Number,
-        default: 0
+        default: 0,
+        min: 0,
+    },
+
+    videoCount: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    isPublic: {
+        type: Boolean,
+        default: true,
+    },
+    isDeleted: {
+        type: Boolean,
+        default: false,
+    },
+    thumbnail: {
+        type: String,
+        default: ""
     },
     // so we store the ids of the videos in an array 
     videos: [
@@ -22,7 +45,8 @@ const playlistSchema = new Schema({
     ],
     owner:{
         type: Schema.Types.ObjectId,
-        ref: "User"
+        ref: "User",
+        required: true,
     },
 
 },{timestamps: true})
