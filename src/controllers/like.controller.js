@@ -353,21 +353,21 @@ const getLikedVideos = asyncHandler(async(req, res) => {
 
     // ab simple sortOptions bana ke rakh lete hai createdAt = -1 jisse hamara videos default  me accesnding order me rakhega 
 
-    const searchOptions = {
+    let sortOptions = {
         createdAt : -1
     }
 
     // now we make some option for sorting 
     if(req.query.sortBy === "views"){
         // then we update the value of the sorting of videos to its views 
-        searchOptions = {
+        sortOptions = {
             views : -1
         }
     }
 
     // for duration 
     if(req.query.sortBy === "duration"){
-        searchOptions = {
+        sortOptions = {
             duration : -1
         }
     }
@@ -637,7 +637,7 @@ const getLikedTweets = asyncHandler(async(req, res) => {
                                 pipeline: [
                                     // now we want ki hame kya kya owner me se aage bhejna hai 
                                     {
-                                        $projects:{
+                                        $project:{
                                             fullName: 1,
                                             username: 1,
                                             avatar: 1
@@ -943,6 +943,193 @@ const getLikedComments = asyncHandler(async(req, res) => {
                 hasNextPage : (page * limit) < totalLikedComments
             },
             "Liked Comment fetched Successfully"
+        )
+    )
+})
+
+// now we make the controller for getting the saved playlist 
+const getSavedPlaylists = asyncHandler(async(req, res) => {
+    // pagination
+
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    )
+
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 20,
+            1
+        ),
+        100
+    )
+
+    const skip = (page - 1)*limit;
+
+    const search = req.query.search?.trim() || "";
+
+    let sortOptions = {
+        createdAt : -1
+    }
+
+    if(req.query.sortBy === "saveCount"){
+        sortOptions = {
+            saveCount : -1
+        }
+    }
+
+    if(req.query.sortBy  === "videoCount"){
+        sortOptions = {
+            videoCount: -1
+        }
+    }
+
+    const filter = {
+        likedBy : new mongoose.Types.ObjectId(
+            req.user._id
+        ),
+        playlist:{
+            $exists: true,
+            $ne: null,
+        }
+    }
+
+    // now we make the aggeration pipeline
+    const savedPlaylists = await Like.aggregate(
+        [
+            {
+                $match: filter 
+            },
+            {
+                $lookup: {
+                    from : "playlists",
+                    localField : "playlist",
+                    foreignField: "_id",
+                    as: "playlist",
+                    pipeline: [
+                        {
+                            $match:{
+                                isDeleted : false,
+                                ...(search && {
+                                    name: {
+                                        $regex: search,
+                                        $options: "i"
+                                    }
+                                })
+                            }
+                        },
+                        {
+                            $lookup: {
+                                from: "users",
+                                localField: "owner",
+                                foreignField: "_id",
+                                as: "owner",
+                                pipeline: [
+                                    {
+                                        $projects: {
+                                            fullName: 1,
+                                            username: 1,
+                                            avatar: 1,
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            $addFields:{
+                                owner: {
+                                    $first: "$owner"
+                                }
+                            }
+                        },
+                        {
+                            $project: {
+                                name: 1,
+                                description: 1,
+                                thumbnail: 1,
+                                saveCount: 1,
+                                videoCount: 1,
+                                isPublic: 1,
+                                owner: 1,
+                                createdAt: 1,
+                                updatedAt: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $unwind: "$playlist"
+            },
+            {
+                $replaceRoot: {
+                    newRoot : "$playlist"
+                }
+            },
+            {
+                $sort : sortOptions
+            },
+            {
+                $skip: skip
+            },
+            {
+                $limit : limit
+            }
+        ]
+    );
+
+    // total count 
+    const totalCountResult = await Like.aggregate(
+        [
+            {
+                $match: filter
+            },
+            {
+                $lookup: {
+                    from: "playlists",
+                    localField: "playlist",
+                    foreignField: "_id",
+                    as: "playlist",
+                    pipeline: [
+                        {
+                            $match:{
+                                isDeleted : false,
+                                ...(search && {
+                                    name: {
+                                        $regex: search,
+                                        $options: "i"
+                                    }
+                                })
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $unwind: "$playlist"
+            },
+            {
+                $count: "totalSavedPlaylists"
+            }
+        ]
+    );
+
+    const totalSavedPlaylists =totalCountResult[0]?.totalSavedPlaylists || 0;
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                playlist: savedPlaylists,
+                page,
+                limit,
+                totalSavedPlaylists,
+                totalPages: Math.ceil(totalSavedPlaylists / limit),
+                hasNextPage:(page * limit) < totalSavedPlaylists
+            },
+            "Saved Playlist fetched Successfully"
         )
     )
 })
