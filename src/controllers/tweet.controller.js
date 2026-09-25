@@ -246,3 +246,32 @@ const updateTweet = asyncHandler(async(req, res)=> {
     )
 })
 
+// lets make the deleteTweet controller 
+const deleteTweet = asyncHandler(async(req, res) => {
+    // lets fetched the id
+    const {tweetId} = req.params;
+    
+    validateObjectId(
+        tweetId,
+        "Tweet ID"
+    );
+
+    const tweet = await Tweet.find(
+        {
+            _id : tweetId,
+            isDeleted: false,
+            owner : req.user._id,
+        }
+    )
+
+    if(!tweet){
+        throw new ApiError(
+            404,
+            "Tweet Not found"
+        )
+    }
+
+    // mark tweet as delete 
+    
+})
+
