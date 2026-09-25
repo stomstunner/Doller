@@ -23,6 +23,10 @@ const tweetSchema = new Schema({
         type: Boolean,
         default: false,
     },
+    deletedAt : {
+        type: Boolean,
+        default: false,
+    },
     isEdited: {
         type: Boolean,
         default: false,
