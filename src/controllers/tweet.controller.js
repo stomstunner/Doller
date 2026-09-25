@@ -112,3 +112,137 @@ const createTweet = asyncHandler(async(req, res) => {
 
 })
 
+/*
+UpdateTweet controllers 
+
+1. Tweet exist karta hai ya nahi
+2. Tweet deleted toh nahi hai
+3. Tweet ka owner current user hi hai ya nahi
+4. New content valid hai ya nahi
+5. Mentions dobara extract karni hain
+6. isEdited = true karna hai
+7. editedAt update karna hai
+
+*/
+
+const updateTweet = asyncHandler(async(req, res)=> {
+    // first of all we take the id from the params 
+    const {tweetId} = req.params;
+
+    // now the 2nd step is to validate the object id 
+    validateObjectId(
+        tweetId,
+        "Tweet ID"
+    )
+
+    // now we fetch the data of the content
+    // ye woh content hai jo user hame de rha hai update karne ke liye 
+    const {content} = req.body;
+
+    if(!content?.trim()){
+        throw new ApiError(
+            400,
+            "Tweet content is required"
+        )
+    }
+
+    // now we make sure ki tweet ka lenght bhi sahi ho 
+    if(content.trim().length < 3){
+        throw new ApiError(
+            400,
+            "Tweet must contain 3 characters"
+        )
+    }
+
+    if(content.trim().length > 300){
+        throw new ApiResponse(
+            400,
+            "Tweet cannot exceed 300 characters"
+        )
+    }
+
+    // now we fetch the tweet from the database 
+    const tweet = await Tweet.findOne(
+        {
+            _id: tweetId,
+            isDeleted: false,
+            owner: req.user._id
+        }
+    )
+
+    if(!tweet){
+        throw new ApiError(
+            404,
+            "Tweet not found or you are not allowed to update the tweet"
+        )
+    }
+
+    const mentionMatches = content.match(
+        /(?:@|\/)([a-zA-Z0-9_]+)/g
+    ) || [];
+
+    // now we remove the username from the content 
+    const usernames = mentionMatches.map(
+        (username) => username.substring(1)
+    )
+
+    // remove the duplicate metions 
+    const uniqueUsernames = [
+        ...new Set(usernames)
+    ];
+
+    // now we find the all metioned username ka id from the databse 
+    const mentionedUsers = await User.find(
+        {
+            username:{
+                $in: uniqueUsernames
+            }
+        }
+    ).select("_id")
+
+    // now we have to validate the all metions that comes from the user without the uniques is exits or not 
+    if(mentionedUsers.length !== uniqueUsernames.length){
+        throw new ApiError(
+            404,
+            "One or more mentioned user is not found"
+        )
+    }
+
+    // we have object of object but we want ki hamre pass metions me bass arayy ho ids of user ka
+    const mentions = uniqueUsernames.map(
+        (user) => user._id
+    )
+    // in metions we store array
+
+    // now the important part is to update the tweet filed 
+    tweet.content = content.trim();
+    tweet.mentions = mentions;
+    tweet.isEdited = true,
+    tweet.editedAt = new Date();
+    // save the updated tweet
+    await tweet.save();
+
+    // now we make the updated tweet me kya kya store ho 
+    const updatedTweet = await Tweet.findById(tweetId)
+    .populate(
+        "owner",
+        "fullName username avatar"
+    )
+    .populate(
+        "mentions",
+        "fullName username avatar"
+    )
+    .lean()
+
+    // now we send the response 
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            updatedTweet,
+            "Tweet Updated Successfully"
+        )
+    )
+})
+
