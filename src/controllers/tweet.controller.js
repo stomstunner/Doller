@@ -155,7 +155,7 @@ const updateTweet = asyncHandler(async(req, res)=> {
     }
 
     if(content.trim().length > 300){
-        throw new ApiResponse(
+        throw new ApiError(
             400,
             "Tweet cannot exceed 300 characters"
         )
@@ -209,7 +209,7 @@ const updateTweet = asyncHandler(async(req, res)=> {
     }
 
     // we have object of object but we want ki hamre pass metions me bass arayy ho ids of user ka
-    const mentions = uniqueUsernames.map(
+    const mentions = mentionedUsers.map(
         (user) => user._id
     )
     // in metions we store array
