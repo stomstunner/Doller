@@ -13,6 +13,12 @@ const tweetSchema = new Schema({
         ref:"User",
         required: true,
     },
+    mentions: [
+            {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+        }
+    ],
     isDeleted : {
         type: Boolean,
         default: false,
@@ -21,11 +27,30 @@ const tweetSchema = new Schema({
         type: Boolean,
         default: false,
     },
+    isPinned: {
+        type: Boolean,
+        default: false,
+    },
     editedAt: {
         type: Date,
         default: null,
     },
     replyCount: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    likeCount: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    saveCount: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    repostCount: {
         type: Number,
         default: 0,
         min: 0
