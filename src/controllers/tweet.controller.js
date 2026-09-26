@@ -5,17 +5,18 @@ import { validateObjectId } from "../utils/validateObjectId.js";
 import { Tweet } from "../models/tweet.models.js";
 import { User } from "../models/user.models.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { deleteFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
+import { Like } from "../models/like.models.js";
 
 
 // lets make the controller for the create a tweet 
 const createTweet = asyncHandler(async(req, res) => {
     // the fisrt step is to store the ids 
     // and content from the query 
-    const {content} = req.body;
+    const {content = ""} = req.body;
 
     // now we make the logic ki ham user se 4 max photo bhi le sakte hai 
-    const imageLocalPaths = req.file?.map(
+    const imageLocalPaths = req.files?.map(
         (file) => file.path
     ) || []
 
@@ -36,7 +37,7 @@ const createTweet = asyncHandler(async(req, res) => {
 
     // minimum length validation
 
-    if(content.trim().length < 3){
+    if(content?.trim() && content?.trim().length < 3){
 
         throw new ApiError(
             400,
@@ -44,7 +45,7 @@ const createTweet = asyncHandler(async(req, res) => {
         );
     }
 
-    if(content.trim().length > 300){
+    if(content?.trim().length > 300){
         throw new ApiError(
             400,
             "Tweet content cannot exceed 300 characters"
@@ -128,7 +129,7 @@ const createTweet = asyncHandler(async(req, res) => {
     // now we create the tweet 
     const tweet = await Tweet.create(
         {
-            content : content.trim(),
+            content : content?.trim(),
             owner : req.user._id,
             mentions,
             // mentions me hamare pass array of object id hoga user ka 
@@ -183,28 +184,7 @@ const updateTweet = asyncHandler(async(req, res)=> {
     // now we fetch the data of the content
     // ye woh content hai jo user hame de rha hai update karne ke liye 
     const {content} = req.body;
-
-    if(!content?.trim()){
-        throw new ApiError(
-            400,
-            "Tweet content is required"
-        )
-    }
-
-    // now we make sure ki tweet ka lenght bhi sahi ho 
-    if(content.trim().length < 3){
-        throw new ApiError(
-            400,
-            "Tweet must contain 3 characters"
-        )
-    }
-
-    if(content.trim().length > 300){
-        throw new ApiError(
-            400,
-            "Tweet cannot exceed 300 characters"
-        )
-    }
+    
 
     // now we fetch the tweet from the database 
     const tweet = await Tweet.findOne(
@@ -222,7 +202,33 @@ const updateTweet = asyncHandler(async(req, res)=> {
         )
     }
 
-    const mentionMatches = content.match(
+    const imageLocalPaths = req.files?.map(
+        (file) => file.path
+    ) || [];
+
+    if(!content?.trim() && imageLocalPaths.length === 0 && tweet.images.length === 0  ){
+        throw new ApiError(
+            400,
+            "Tweet content or Image is required"
+        )
+    }
+
+
+    if(content?.trim() && content.trim().length > 300){
+        throw new ApiError(
+            400,
+            "Tweet cannot exceed 300 characters"
+        )
+    }
+
+    if(imageLocalPaths.length > 4){
+        throw new ApiError(
+            400,
+            "Maximum 4 image allowed"
+        )
+    }
+
+    const mentionMatches = content?.match(
         /(?:@|\/)([a-zA-Z0-9_]+)/g
     ) || [];
 
@@ -259,13 +265,54 @@ const updateTweet = asyncHandler(async(req, res)=> {
     )
     // in metions we store array
 
+    // before deleting the old image and uploading the new image we first upload then verify and then store in databse then we delete the images 
+
+    const uplaodedImages = await Promise.all(
+        imageLocalPaths.map(
+            async(imagelocalpath) => {
+                const image = await uploadOnCloudinary(imagelocalpath)
+                if(!image){
+                    throw new ApiError(
+                        500,
+                        "Error while uploading images"
+                    )
+                }
+
+                return {
+                    url: image.secure_url || image.url,
+                    publicId: image.public_id
+                }
+            }
+        )
+    )
+
+    // now we temprorly store the old image to a varibale 
+    const oldImages = [...tweet.images];
+    // replace old images temporaily 
+    if(uplaodedImages.length > 0){
+        tweet.images = uplaodedImages
+    }
+
     // now the important part is to update the tweet filed 
-    tweet.content = content.trim();
+    if(content?.trim()){
+
+        tweet.content = content.trim();
+    }
     tweet.mentions = mentions;
-    tweet.isEdited = true,
+    tweet.isEdited = true;
     tweet.editedAt = new Date();
     // save the updated tweet
     await tweet.save();
+
+    if(uplaodedImages.length > 0){
+        for(const image of oldImages){
+            if(image.publicId){
+                await deleteFromCloudinary(
+                    image.publicId
+                )
+            }
+        }
+    }
 
     // now we make the updated tweet me kya kya store ho 
     const updatedTweet = await Tweet.findById(tweetId)
@@ -278,6 +325,13 @@ const updateTweet = asyncHandler(async(req, res)=> {
         "fullName username avatar"
     )
     .lean()
+
+    if(!updatedTweet){
+        throw new ApiError(
+            500,
+            "Failed to fetch updated tweet"
+        );
+    }
 
     // now we send the response 
     return res
@@ -301,7 +355,7 @@ const deleteTweet = asyncHandler(async(req, res) => {
         "Tweet ID"
     );
 
-    const tweet = await Tweet.find(
+    const tweet = await Tweet.findOne(
         {
             _id : tweetId,
             isDeleted: false,
@@ -316,7 +370,72 @@ const deleteTweet = asyncHandler(async(req, res) => {
         )
     }
 
-    // mark tweet as delete 
+    // now we want to delete the all tweet and its subsidery to hard delte 
+    // for that we delete  the tweet image 
+    if(tweet.images.length > 0){
+        for(const image of tweet.images){
+            if(image.publicId){
+                try{
+                    await deleteFromCloudinary(
+                        image.publicId
+                    );
+                }
+                catch(error){
+                    console.log(error);
+                }
+            }
+        }
+    }
+
+    // now we have to delete all the comment that is under the current tweet
+    // here in the comments we store the har ek comment ka id jo ki abhi tweet ka hai
+    // yaha ham commets me distinct ka use kar rhe hai jo ki bass array hi retrn karta hai aur toh aur ager hamen bass id hi chaie toh iske liye distint sahi rahega findById se 
+    // kyuki ye array deta hai na ki array of objects  
+    const comments = await Comment.distinct(
+        "_id",
+        {
+            tweet:tweetId
+        }
+    );
+    // now we delte the all like in the comments 
+    if(comments.length > 0){
+        await Like.deleteMany(
+            {
+                comment: {
+                    $in: comments
+                }
+            }
+        )
+    }
+
+    // now we delte the all comment of this tweet 
+    await Comment.deleteMany(
+        {
+            tweet: tweetId
+        }
+    )
+
+    // now we delete all the like of the Tweet
+    await Like.deleteMany(
+        {
+            tweet: tweetId
+        }
+    )
+
+    // finally we delete the whole tweet 
+    await Tweet.findByIdAndDelete(
+        tweetId
+    )
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {},
+            "Tweet deleted successfully"
+        )
+    )
 
 })
 
