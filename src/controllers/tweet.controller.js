@@ -439,3 +439,67 @@ const deleteTweet = asyncHandler(async(req, res) => {
 
 })
 
+// now we make the controller for getTweetById kyuki ham kabhi bass 1 koi bhi tweet ko fetch karna ho toh usko laa sakte hai 
+const getTweetById = asyncHandler(async(req, res)=> {
+    const {tweetId} = req.params;
+    validateObjectId(
+        tweetId,
+        "Tweet ID"
+    )
+
+    //  now we fetch the tweet and by its id and populate the files that we want to send the frontent
+    // // findOne return a single document object
+    const tweet = await Tweet.findOne(
+        {
+            _id: tweetId,
+            isDeleted : false
+        }
+    )
+    .populate(
+        "owner",
+        "fullName username avatar"
+    )
+    .populate(
+        "mentions",
+        "fullName username avatar"
+    )
+    .lean()
+
+    // check ki tweet hai bhi ya nahi
+    if(!tweet){
+        throw new ApiError(
+            404,
+            "Tweet not found"
+        )
+    }
+
+    // now we check ki hamare currnt user ne tweet ko like kiya hai ya nahi 
+    const likedTweet = await Like.exists(
+        {
+            tweet: tweetId,
+            likedBy: req.user._id
+        }
+    )
+    // also we check ki kahi ye tweet hamara hi toh nahi hai
+    // owner is an obejct thats we have to into the owner  
+    const isOwner = tweet.owner._id.toString() === req.user._id.toString();
+
+    tweet.isLiked = likedTweet ? true : false;
+    tweet.isOwner = isOwner;
+
+    // these two filed or object does not save in the databse bass ye return hoga response me 
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                tweet
+                // we temporaily add the isLiked and isOnwer to the tweet so we can fetch from the tweet leter 
+            },
+            "Tweet fetched successfully"
+        )
+    )
+})
+
