@@ -503,3 +503,87 @@ const getTweetById = asyncHandler(async(req, res)=> {
     )
 })
 
+const getUserTweets = asyncHandler(async(req, res)=> {
+    // we extract the userId from the params 
+    const {userId} = req.params;
+    validateObjectId(
+        userId,
+        "Tweet ID"
+    )
+
+    // now we write the pagination methods
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    )
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 20,
+            1
+        ),
+        100
+    )
+    const skip = (page - 1) * limit;
+    const userExists = await User.exists(
+        {
+            _id: userId
+        }
+    )
+    if(!userExists){
+        throw new ApiError(
+            404,
+            "user not found"
+        )
+    }
+
+    // now the most important part is to fetch the all the tweet of that user 
+    const tweets = await Tweet.find(
+        {
+            owner : userId,
+            isDeleted : false
+        }
+    )
+    .populate(
+        "owner",
+        "fullName username avatar"
+    )
+    .populate(
+        "mentions",
+        "fullName username avatar"
+    )
+    .sort(
+        {
+            isPinned: -1,
+            // we want ki hamne jo jo latest me pinned kiya hai woh phale aaye 
+            createdAt: -1
+            // then we want ki hamne jo latest create kiya hai woh aaye after pinned
+        }
+    )
+    .skip(skip)
+    .limit(limit)
+    .lean()
+
+    const totalTweets = await Tweet.countDocumnets(
+        {
+            owner: userId,
+            isDeleted: false
+        }
+    )
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                tweets,
+                page,
+                limit,
+                totalPage : Math.ceil(totalTweets/ limit),
+                hasNextPage: (page*limt) < totalTweets
+            },
+            "Tweet fetched Successfully"
+        )
+    )
+})
+
