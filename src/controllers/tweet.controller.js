@@ -5,6 +5,7 @@ import { validateObjectId } from "../utils/validateObjectId.js";
 import { Tweet } from "../models/tweet.models.js";
 import { User } from "../models/user.models.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
 
 
 // lets make the controller for the create a tweet 
@@ -13,13 +14,21 @@ const createTweet = asyncHandler(async(req, res) => {
     // and content from the query 
     const {content} = req.body;
 
+    // now we make the logic ki ham user se 4 max photo bhi le sakte hai 
+    const imageLocalPaths = req.file?.map(
+        (file) => file.path
+    ) || []
+
+    // we store the imageLocalPath me array of path of the image/file
+
     // we store the mentions from the content after taking only that text that has a @
 
     // now we check ki hamare content me kuch data hai bhi ya nahi ager nahi hua toh error return 
-    if(!content?.trim()){
+    // we ckeck ki hamare pass at least content nahi toh 1 image toh hona hi chaiye
+    if(!content?.trim() && imageLocalPaths.length ===0){
         throw new ApiError(
             400,
-            "Tweet content is required"
+            "Tweet content or image is required"
         )
     }
 
@@ -39,6 +48,14 @@ const createTweet = asyncHandler(async(req, res) => {
         throw new ApiError(
             400,
             "Tweet content cannot exceed 300 characters"
+        )
+    }
+
+    // now we write the logic ki ham max 4 image ko hi add akr sakte hai 
+    if(imageLocalPaths.length > 4){
+        throw new ApiError(
+            400,
+            "Maximum 4 image is allowed"
         )
     }
 
@@ -83,6 +100,31 @@ const createTweet = asyncHandler(async(req, res) => {
         // ye _id aaya hai hamare metionsuser ke ander se ki unko saro ko = user khud ek obejt hai toh usme id ko nikalo aur usnke ander se nikalne ke baad ham user me store kar denge aur fir uso array me badl denge kyui hamne mentionuser jo ki ek object og object hai uske har ek object ko rahe hai aur usko array bana rahe hai 
     )
 
+
+    // now we upload the image on the cloudinary
+    // const uplaodedImages = [];
+    
+    const uplaodedImages = await Promise.all(
+        imageLocalPaths.map(
+            async(imagelocalpath)=>{
+                const image = await uploadOnCloudinary(imagelocalpath);
+                if(!image){
+                    throw new ApiError(
+                        500,
+                        "Error while uploading image"
+                    )
+                }
+
+                // now we return thr url of each image into an array that stored in uplaodedImages
+
+                return {
+                    url: image.secure_url || image.url,
+                    publicId: image.public_id,
+                }
+
+            }
+        )
+    )
     // now we create the tweet 
     const tweet = await Tweet.create(
         {
@@ -90,6 +132,9 @@ const createTweet = asyncHandler(async(req, res) => {
             owner : req.user._id,
             mentions,
             // mentions me hamare pass array of object id hoga user ka 
+
+            // now we just add the uploaded image to the Image
+            images: uplaodedImages
         }
     )
 
@@ -272,6 +317,6 @@ const deleteTweet = asyncHandler(async(req, res) => {
     }
 
     // mark tweet as delete 
-    
+
 })
 
