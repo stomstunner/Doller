@@ -928,7 +928,131 @@ const toggleTweetRepost = asyncHandler(async(req, res) => {
 
 const getTweetReposts  = asyncHandler(async(req, res)=>{
     const {tweetId} = req.params;
+    // validate the objectid 
+    validateObjectId(
+        tweetId,
+        "Tweet ID"
+    )
     
+    // pagination
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    )
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 20,
+            1
+        ),
+        100
+    )
+    const skip = ( page - 1 ) * limit;
+
+    const sortOptions = {
+        createdAt: -1
+    }
+    // we want only that repost which belongs to that perticular Tweet
+    const filter = {
+        tweet : new mongoose.Types.ObjectId(
+            tweetId
+        )
+    }
+
+    // now we make the aggeration pipleine
+    const reposts = await Repost.aggregate(
+        [
+            // first pipeline 
+            // finding all reposts of this tweet 
+            {
+                $match: filter
+            },
+            // now we go from Repost collection
+            // to User collection
+            //
+            // because repostedBy contains
+            // the User ObjectId.
+            {
+                $lookup:{
+                    from: "users",
+                    localField: "repostedBy",
+                    foreignField: "_id",
+                    as: "repostedBy",
+
+                    // now we send only those field that we want to send in the response 
+                    pipeline: [
+                        {
+                            $project: {
+                                fullName: 1,
+                                username: 1,
+                                avatar: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            // lookup always resturns a array
+            // but one repost have only one user that reposted it 
+            // so convert the array to object
+
+            {
+                $addFields: {
+                    repostedBy: {
+                        $first: "$repostedBy"
+                    }
+                }
+            },
+
+            // now we selcect what we want from the repost documents
+            {
+                $project:{
+                    repostedBy: 1,
+                    createdAt: 1
+                }
+            },
+            {
+                $sort: sortOptions
+            },
+            {
+                $skip: skip
+            },
+            {
+                $limit : limit
+            }
+
+        ]
+    );
+
+    const totalCountResult = await Repost.aggregate(
+        [
+            {
+                $match: filter
+            },
+            {
+                $count: "totalReposts"
+            }
+        ]
+    )
+
+    // now we find the total repost 
+    const totalReposts = totalCountResult[0]?.totalReposts || 0;
+
+    // now we send the response 
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                reposts,
+                page,
+                limit,
+                totalReposts,
+                totalPages: Math.ceil(totalReposts / limit),
+                hasNextPage: (page * limit) < totalReposts
+            },
+            "Tweet reposts Fetched Successfully"
+        )
+    )
 })
 
 
