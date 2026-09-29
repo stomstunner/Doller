@@ -4,6 +4,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { validateObjectId } from "../utils/validateObjectId.js";
 import { Tweet } from "../models/tweet.models.js";
 import { User } from "../models/user.models.js";
+import { Repost } from "../models/repost.models.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { deleteFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
 import { Like } from "../models/like.models.js";
@@ -828,5 +829,106 @@ const getCommunityFeed = asyncHandler(async(req, res)=> {
     )
 
 });
+
+// now we make the toggleTweetRepost 
+const toggleTweetRepost = asyncHandler(async(req, res) => {
+    // we store the tweet ids
+    const {tweetId} = req.params;
+    // validate the ObjectId
+    validateObjectId(
+        tweetId,
+        "Tweet ID"
+    )
+    // now we check that this tweet actually exists or not 
+    const tweet = await Tweet.findOne(
+        {
+            _id: tweetId,
+            isDeleted: false
+        }
+    )
+
+    // now we make conditons ki ager haamre pass tweet phale ne nahi hai toh error dena hai
+    
+    if(!tweet){
+        throw new ApiError(
+            404,
+            "Tweet not found"
+        )
+    }
+
+    // now we check that weather the current user currently reposted this tweet or not 
+    // we are coparing tweet with tweetid because tweet is tha name of the field name where tweetid store in schema , and tweet id is from the prams
+    const existingRepost = await Repost.findOne({
+        tweet: tweetId,
+        repostedBy: req.user._id
+    });
+
+    // now if the user already repost that tweet means we have to delete that repost by user not the owner 
+    if(existingRepost){
+        // remove the repost record 
+        await Repost.findByIdAndDelete(
+            existingRepost._id
+        )
+
+        // and we also have to decrease the count of the repost 
+        await Repost.findByIdAndUpdate(
+            tweetId,
+            {
+                $inc:{
+                    repostCount: -1
+                }
+            }
+        )
+
+        // now if we have the reposted already then we send the response 
+        return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    isReposted: false
+                },
+                "Tweet unreposted successfully"
+            )
+        )
+    }
+
+    // now here we are means there is not reposted hit yet so we create the repost 
+    await Repost.create({
+        tweet: tweetId,
+        repostedBy: req.user._id
+    })
+
+    // now we increase the count of the repost 
+    await Repost.findByIdAndUpdate(
+        tweetId,
+        {
+            $inc:{
+                repostCount: 1
+            }
+        }
+    )
+
+    // after reposted we send the response
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                isReposted: true
+            },
+            "Tweet Resposted Successfully"
+        )
+    )
+})
+
+// now we make a controller where we store ki hamare tweet ko kin kin user ne repost kiya hai 
+
+const getTweetReposts  = asyncHandler(async(req, res)=>{
+    const {tweetId} = req.params;
+    
+})
 
 
