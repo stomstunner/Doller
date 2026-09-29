@@ -508,7 +508,7 @@ const getUserTweets = asyncHandler(async(req, res)=> {
     const {userId} = req.params;
     validateObjectId(
         userId,
-        "Tweet ID"
+        "User ID"
     )
 
     // now we write the pagination methods
@@ -563,7 +563,7 @@ const getUserTweets = asyncHandler(async(req, res)=> {
     .limit(limit)
     .lean()
 
-    const totalTweets = await Tweet.countDocumnets(
+    const totalTweets = await Tweet.countDocuments(
         {
             owner: userId,
             isDeleted: false
@@ -579,11 +579,254 @@ const getUserTweets = asyncHandler(async(req, res)=> {
                 tweets,
                 page,
                 limit,
+                totalTweets,
                 totalPage : Math.ceil(totalTweets/ limit),
-                hasNextPage: (page*limt) < totalTweets
+                hasNextPage: (page*limit) < totalTweets
             },
             "Tweet fetched Successfully"
         )
     )
 })
+
+// now we make a controller for the community feed where we can show all the tweets from all the users 
+const getCommunityFeed = asyncHandler(async(req, res)=> {
+    // pagination 
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    )
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 20,
+            1
+        ),
+        100
+    )
+    const skip = (page - 1) * limit;
+
+    const search = req.query.search?.trim() || "";
+
+    const tweets = await Tweet.aggregate(
+        [
+            // first pipleline we want only active tweets 
+            {
+                $match: {
+                    isDeleted : false
+                }
+            },
+            // now we want the owner details for that we use lookup for user models
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "owner",
+                    foreignField: "_id",
+                    as: "owner",
+                    // now we want only some filelds from the uwner filed 
+                    // thats why we use the pipleline ke ander project
+                    pipeline: [
+                        {
+                            $project:{
+                                fullName: 1,
+                                username: 1,
+                                avatar: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            // now at the 3ed arregation at the root level we also want ki hamnre pass mentions ka bhi details ho 
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "mentions",
+                    foreignField: "_id",
+                    as: "mentions",
+                    pipeline: [
+                        {
+                            $project: {
+                                fullName: 1,
+                                username: 1,
+                                avatar: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            // now we have owner but in form of array becaus of pipeline so we use $addFields for converting the owner to the object
+            {
+                $addFields: {
+                    $first: "$owner"
+                }
+            },
+            // now we want ki ham search ke liye code likhe ki ager seach hus toh ham username, content and fullname dono me se koi bhi wala pattern mile toh usse return kar denge woh tweet ko 
+            ...(search ? [
+                {
+                    $match: {
+                        // match karna hai ye tino me se koi bhi 1 toh ham or ka use karnege 
+                        $or: [
+                            // first parameter 
+                            {
+                                content: {
+                                    $regex: search,
+                                    $options: "i"
+                                }
+                            },
+                            // 2nd parameter 
+                            {
+                                "$owner.username": {
+                                    $regex: search,
+                                    $options: "i"
+                                }
+                            },
+                            // 3re parameter
+                            {
+                                "$owner.fullName": {
+                                    $regex: search,
+                                    $options: "i"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ] : []),
+            // last me ye ek ternery oprtator jaisse hai ki (search ? [] : [])
+            // ager kuch hai toh usse lo nahi toh noting
+
+            // Like collection me jao aur mujhe wo like do jisme tweet current tweet ho aur likedBy current user ho.
+
+            // now we check if our current user liked the tweet or not 
+            {
+                $lookup:{
+                    from: "likes",
+                    // we use let to store tweetid for current tweet nahi toh hamanre likes ko pata hi nahi chalega ki abhi kon sa tweet ke baare me ham baat kar rahe hai 
+                    $let:{
+                        tweetId: "_id"
+                    },
+                    // now we apply pipeline for further evaluation ki kya hamare pass jo current tweet hai woh tweetid se match ho rha hai ager ha toh kya woh current user ne usse like kiya hua hai 
+                    pipeline: [
+                        {
+                            $match:{
+                                // match  karna hai hame by AND operation ki do expression ager true hua toh 
+                                $expr: {
+                                    $and: [
+                                        // first equation
+                                        {
+                                            $eq:[
+                                                // kya hamara tweet aur tweetid ka value same hai 
+                                                "$tweet",
+                                                "$$tweetId"
+
+                                            ]
+                                        },
+                                        {
+                                            $eq:[
+                                                "$likedBy",
+                                                req.user._id
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: "likedTweet"
+                }
+            },
+            // now we find the engagementScore and liked ststus
+            {
+                $addFields:{
+                    engagementScore:{
+                        $and:[
+                            "$likeCount",
+                            {
+                                $multiply:[
+                                    "$replyCount",
+                                    3
+                                ]
+                            },
+                            {
+                                $multiply:[
+                                    "$repostCount",
+                                    5
+                                ]
+                            },
+                            {
+                                $multiply:[
+                                    "$saveCount",
+                                    8
+                                ]
+                            },
+                        ]
+                    },
+                    // now we make a temporery response isLiked
+                    isLiked:{
+                        $gt:[
+                            {
+                                $size: "$likedTweet"
+                            },
+                            0
+                        ]
+                    }
+                }
+            },
+            {
+                $project:{
+                    content: 1,
+                    owner: 1,
+                    mentions: 1,
+                    images: 1,
+                    isEdited: 1,
+                    editedAt: 1,
+                    createdAt: 1,
+                    updatedAt: 1,
+                    likeCount: 1,
+                    replyCount: 1,
+                    repostCount: 1,
+                    saveCount: 1,
+                    engagementScore: 1,
+                    isLiked: 1
+
+                }
+            },
+            {
+                $sort: {
+                    engagementScore: -1,
+                    createdAt: -1
+                }
+            },
+            {
+                $skip: skip
+            },
+            {
+                $limit: limit
+            }
+        ]
+    );
+
+    // total tweet are
+    const totalTweets = await Tweet.countDocuments(
+        {
+            isDeleted: false
+        }
+    )
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                tweets,
+                page,
+                limit,
+                totalTweets,
+                totalPages: Math.ceil(totalTweets / limit),
+                hasNextPage:(page * limit) < totalTweets
+            },
+            "Community feed fetched Successfully"
+        )
+    )
+
+});
+
 
