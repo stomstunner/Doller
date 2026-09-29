@@ -445,3 +445,190 @@ const getCommunityFeed = asyncHandler(async(req, res) => {
     );
 
 });
+
+````
+----
+
+// --------------------------------------------------
+// CHECK KARNA HAI KI CURRENT USER NE TWEET KO LIKE
+// KIYA HAI YA NAHI
+// --------------------------------------------------
+
+{
+    $lookup: {
+
+        // MongoDB ki Like collection me jana hai
+        from: "likes",
+
+        // --------------------------------------------------
+        // Yaha hum current tweet ki _id ko ek temporary
+        // variable me store kar rahe hain.
+        //
+        // Maan lo current tweet hai:
+        //
+        // {
+        //     _id: "tweet101"
+        // }
+        //
+        // Toh:
+        //
+        // tweetId = "tweet101"
+        //
+        // ho jayega.
+        // --------------------------------------------------
+
+        let: {
+
+            tweetId: "$_id"
+
+        },
+
+        // --------------------------------------------------
+        // Ab Like collection ke andar search karenge.
+        // --------------------------------------------------
+
+        pipeline: [
+
+            {
+                $match: {
+
+                    // --------------------------------------------------
+                    // $expr ka use tab karte hain jab hame
+                    // MongoDB ke fields/variables ko compare karna ho.
+                    //
+                    // Hame compare karna hai:
+                    //
+                    // Like document ka tweet
+                    //
+                    // VS
+                    //
+                    // current Tweet ki _id
+                    //
+                    // Aur ek aur condition:
+                    //
+                    // Like document ka likedBy
+                    //
+                    // VS
+                    //
+                    // current logged-in user
+                    // --------------------------------------------------
+
+                    $expr: {
+
+                        // --------------------------------------------------
+                        // $and ka matlab:
+                        //
+                        // DONO conditions TRUE honi chahiye.
+                        //
+                        // Condition 1:
+                        // Like current tweet ka hona chahiye.
+                        //
+                        // Condition 2:
+                        // Like current user ka hona chahiye.
+                        // --------------------------------------------------
+
+                        $and: [
+
+                            // ==================================================
+                            // CONDITION 1
+                            // ==================================================
+
+                            {
+                                $eq: [
+
+                                    // --------------------------------------------------
+                                    // "$tweet"
+                                    //
+                                    // Ye Like collection ke document ka
+                                    // tweet field hai.
+                                    //
+                                    // Example:
+                                    //
+                                    // {
+                                    //     tweet: "tweet101"
+                                    // }
+                                    //
+                                    // "$tweet" = "tweet101"
+                                    // --------------------------------------------------
+
+                                    "$tweet",
+
+                                    // --------------------------------------------------
+                                    // "$$tweetId"
+                                    //
+                                    // Ye hamara let wala variable hai.
+                                    //
+                                    // let me:
+                                    //
+                                    // tweetId: "$_id"
+                                    //
+                                    // tha.
+                                    //
+                                    // Agar current tweet "tweet101" hai,
+                                    // toh "$$tweetId" = "tweet101"
+                                    // --------------------------------------------------
+
+                                    "$$tweetId"
+
+                                ]
+
+                            },
+
+                            // ==================================================
+                            // CONDITION 2
+                            // ==================================================
+
+                            {
+                                $eq: [
+
+                                    // --------------------------------------------------
+                                    // "$likedBy"
+                                    //
+                                    // Like document ke andar jis user ne
+                                    // like kiya hai uski ID.
+                                    //
+                                    // Example:
+                                    //
+                                    // likedBy: "user1"
+                                    //
+                                    // --------------------------------------------------
+
+                                    "$likedBy",
+
+                                    // --------------------------------------------------
+                                    // req.user._id
+                                    //
+                                    // Ye currently logged-in user ki ID hai.
+                                    //
+                                    // Maan lo:
+                                    //
+                                    // req.user._id = "user1"
+                                    //
+                                    // --------------------------------------------------
+
+                                    req.user._id
+
+                                ]
+
+                            }
+
+                        ]
+
+                    }
+
+                }
+
+            }
+
+        ],
+
+        // --------------------------------------------------
+        // Jo matching Like documents milenge unko
+        // "likedTweet" naam ke field me rakh do.
+        // --------------------------------------------------
+
+        as: "likedTweet"
+
+    }
+
+}
