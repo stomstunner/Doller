@@ -1262,10 +1262,10 @@ const getUserProfileRepostedTweets = asyncHandler(async(req, res) => {
                     page,
                     limit,
                     totalRepostedTweets,
-                    totalPages: Math.ceil(totalRepostedTweets / limit),
+                    totalPages: Math.ceil(totalRepostedTweets / limit), 
                     hasNextPage: (page * limit) < totalRepostedTweets
                 },
-                "Reposted Tweets fetched successfully"
+                "Reposted Tweets fetched successfully" 
             )
         );
 })
