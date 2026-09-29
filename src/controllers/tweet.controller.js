@@ -1055,4 +1055,219 @@ const getTweetReposts  = asyncHandler(async(req, res)=>{
     )
 })
 
+// now we make the controller for getUserRepostedTweets
+const getUserProfileRepostedTweets = asyncHandler(async(req, res) => {
+    const {userId} = req.params;
+    validateObjectId(
+        userId,
+        "User ID"
+    )
+    // pagination
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    )
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 20,
+            1
+        ),
+        100
+    )
+    const skip = ( page - 1 ) * limit;
+
+    const sortOptions = {
+        createdAt: -1
+    }
+    const search = req.query.search?.trim() || "";
+
+    // now we make a filter 
+    const filter = {
+        repostedBy : new mongoose.Types.ObjectId(
+            userId
+        ),
+        tweet:{
+            $exists: true,
+            $ne: null
+        }
+    }
+
+    // the filter for the only tweet that belong to the current user and only tweets repost we want because we have videos section and playlist section as well in schema
+
+    const repostedTweets = await Repost.aggregate(
+        [
+            // first pipeline that we want the repost tweet only for the current user 
+            {
+                $match: filter 
+            },
+            // now we go to the tweet models from the repost because in the repost we have a section for tweet 
+            {
+                $lookup:{
+                    form: "tweets",
+                    localField: "tweet",
+                    foreignField: "_id",
+                    as: "tweet",
+                    // now we are in the tweet collection but we want some selected tweets = like not deleted and if search is there 
+                    pipeline:[
+                        {
+                            $match: {
+                                isDeleted: false,
+                                ...(search ?? {
+                                    content: {
+                                        $regex: search,
+                                        $options: "i"
+                                    }
+                                })
+                            }
+                        },
+                        // now we are in the tweet collection
+                        // we want to go the the user collection
+                        // because we have to see the owner of the tweet
+                        // because we want to display reposted tweet kiska hai 
+                        {
+                            $lookup: {
+                                from: "users",
+                                localField: "owner",
+                                foreignField: "_id",
+                                as: "owner",
+                                // now we want to select only those information in the response of the owner that we want to send in the response 
+                                pipeline:[
+                                    {
+                                        $project:{
+                                            fullName: 1,
+                                            username: 1,
+                                            avatar: 1
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        // $lookup always returns an array
+                        //
+                        // But one Tweet has only one owner.
+                        //
+                        // So we convert the owner array
+                        // into one object.
+                        {
+                            $addFields:{
+                                owner: {
+                                    $first: "$owner"
+                                }
+                            }
+                        },
+                        // now we select what we want from the Tweet
+                        {
+                            $project:{
+                                content: 1,
+                                owner: 1,
+                                mentions: 1,
+                                images: 1,
+                                replyCount: 1,
+                                likeCount: 1,
+                                repostCount: 1,
+                                isEdited: 1,
+                                editedAt: 1,
+                                createdAt: 1,
+                                updatedAt: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            // now the upper level lookup gives us an array so we convert them into a object
+            {
+                $unwind: "$tweet"
+            },
+            // now we don't need the Repost document
+            // as our final response.
+            //
+            // We want the actual Tweet.
+            //
+            // So make Tweet our root document.
+            {
+                $replaceRoot: {
+                    newRoot:"$tweet"
+                }
+            },
+            {
+                $sort: sortOptions
+            },
+            {
+                $skip: skip
+            },
+            {
+                $limit : limit
+            }
+
+        ]
+    );
+
+    const totalCountResult = await Repost.aggregate(
+        [
+            // first find this users
+            // Tweet reposts
+            {
+                $match: filter
+            },
+            // now go from Repost collection
+            // to Tweet collection
+            {
+                $lookup: {
+                    from: "tweets",
+                    localField: "tweet",
+                    foreignField: "_id",
+                    as: "tweet",
+                    pipeline: [
+                        // remove deleted tweets
+                        //
+                        // and apply search if provided
+                        {
+                            $match: {
+                                isDeleted: false,
+                                ...(search && {
+                                    content: {
+                                        $regex: search,
+                                        $options: "i"
+                                    }
+                                })
+                            }
+                        }
+                    ]
+                }
+            },
+            // if Tweet was deleted or search
+            // did not match, the array will be empty.
+            //
+            // $unwind removes that Repost
+            // from the result.
+            {
+                $unwind: "$tweet"
+            },
+            // now count the remaining documents
+            {
+                $count: "totalRepostedTweets"
+            }
+        ]
+    );
+
+    const totalRepostedTweets = totalCountResult[0]?.totalRepostedTweets || 0;
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    tweets: repostedTweets,
+                    page,
+                    limit,
+                    totalRepostedTweets,
+                    totalPages: Math.ceil(totalRepostedTweets / limit),
+                    hasNextPage: (page * limit) < totalRepostedTweets
+                },
+                "Reposted Tweets fetched successfully"
+            )
+        );
+})
+
 
