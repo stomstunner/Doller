@@ -13,7 +13,6 @@ PHASE 2 : ENGAGEMENT
 --------------------
 
 6. toggleTweetLike
-7. toggleTweetSave
 8. toggleTweetRepost
 
 9. incrementTweetView
