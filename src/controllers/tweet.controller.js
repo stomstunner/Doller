@@ -1270,4 +1270,123 @@ const getUserProfileRepostedTweets = asyncHandler(async(req, res) => {
         );
 })
 
+// now we make the controller for the tweet to pin on the user profile 
+const pinTweet = asyncHandler(async(req, res)=> {
+    const {tweetId} = req.params;
+    validateObjectId(
+        tweetId,
+        "Tweet ID"
+    )
+    // now we find ki curretn tweet currnt user ka hi hai na before pinning
+    const tweet = await Tweet.findOne(
+        {
+            _id: tweetId,
+            owner: req.user._id,
+            isDeleted: false
+        }
+    )
+    if(!tweet){
+        throw new ApiError(
+            404,
+            "Tweet not found OR you are not the owner"
+        )
+    }
+
+    if(tweet.isPinned){
+        throw new ApiError(
+            400,
+            "Pinned tweet cannot pe pinned Again"
+        )
+    }
+
+    // now we count how many tweets of this current user is already pinned 
+    const pinnedTweetCount = await Tweet.countDocuments({
+        owner: req.user._id,
+        isDeleted: false,
+        isPinned: true
+    })
+
+    if(pinnedTweetCount >= 3){
+        throw new ApiError(
+            400,
+            "You can pinned maximum 3 tweets"
+        )
+    }
+
+    // now we find the requested tweet and set to pinned 
+    await Tweet.findByIdAndUpdate(
+        tweetId,
+        {
+            $set: {
+                isPinned: true
+            }
+        }
+    )
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                tweetId,
+                isPinned: true
+            },
+            "Tweet Pinned Successfully"
+        )
+    )
+})
+
+// now we make the controller for the unpin tweet from the profile 
+const unpinTweet = asyncHandler(async(req,res)=>{
+    // now we store the id 
+    const {tweetId} = req.params;
+    validateObjectId(
+        tweetId,
+        "Tweet ID"
+    )
+    // now we find those tweet that is from the user and not deleted 
+    const tweet = await Tweet.findOne({
+        _id: tweetId,
+        owner : req.user._id,
+        isDeleted: false
+    }) 
+
+    if(!tweet){
+        throw new ApiError(
+            404,
+            "Tweet not found or you are not the owner of tweet for pinning"
+        )
+    }
+    // now we check ki hamara tweet pinned hai ya nahi 
+    if(!tweet.isPinned){
+        throw new ApiError(
+            400,
+            "Tweet is not pinned"
+        )
+    }
+    // now we firstly unpin the tweet 
+    await Tweet.findByIdAndUpdate(
+        tweetId,
+        {
+            $set:{
+                isPinned : false
+            }
+        }
+    )
+
+    // now we send the response 
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                tweetId,
+                isPinned: false
+            },
+            "Tweet Unpinned Successfully"
+        )
+    )
+})
 
