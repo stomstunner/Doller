@@ -5,9 +5,11 @@ import { validateObjectId } from "../utils/validateObjectId.js";
 import { Tweet } from "../models/tweet.models.js";
 import { User } from "../models/user.models.js";
 import { Repost } from "../models/repost.models.js";
+import { View } from "../models/view.models.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { deleteFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
 import { Like } from "../models/like.models.js";
+import { json } from "express";
 
 
 // lets make the controller for the create a tweet 
@@ -1386,6 +1388,133 @@ const unpinTweet = asyncHandler(async(req,res)=>{
                 isPinned: false
             },
             "Tweet Unpinned Successfully"
+        )
+    )
+})
+
+// now we make the incrementTweetView 
+const incrementTweetView = asyncHandler(async(req, res) => {
+    const { tweetId} = req.params;
+    validateObjectId(
+        tweetId,
+        "Tweet ID"
+    );
+
+    const tweet = await Tweet.findOne({
+        _id: tweetId,
+        isDeleted: false
+    })
+
+    if(!tweet){
+        throw new ApiError(
+            404,
+            "Tweet not found"
+        )
+    }
+
+    // now we check whether this user already viewed this tweet or not 
+    const existingView = await View.findOne({
+        user: req.user._id,
+        tweet: tweetId
+    })
+    // because we are seeing in the view document and woha pe tweet ke liye ham bass user kon hai aur tweet kon hai match karte hai 
+
+    // ab ham abhi ka time store kar lenge
+    const currentTime = new Date();
+
+    // ager hamare pass exixsting view me koi data nahi aaya toh ham tweet ko first time dekh rahe hai 
+    if(!existingView){
+        // now we create the view 
+        await View.create({
+            user: req.user._id,
+            tweet: tweetId,
+            viewedAt: currentTime
+        })
+
+        // now we increase the tweet viewCount by +1
+
+        const updatedTweet = await Tweet.findByIdAndUpdate(
+            tweetId,
+            {
+                $inc:{
+                    viewCount: 1
+                }
+            },
+            {
+                new : true
+            }
+        )
+
+        // now we send the response jisme ham viewCount ko updatedTweet.viewCount ko bhej denge jisse haamra view count 1 se badh jayega
+        return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    viewCount: updatedTweet.viewCount
+                },
+                "Tweet view counted Successfully"
+            )
+        )
+    }
+
+    // now here we are means ki hamne pahle hi iss tweet ko dekh liye hai so agli baar view count ko badhane ke liye ham past ka time aur abhi ka time me 5 min ka difference nikalenge , ager 5 min ho gaya hoga toh count ko increase kar denge 
+
+    const timeDifference = currentTime.getTime() - existingView.viewedAt.getTime();
+
+    // now we keep the 5 minutes as cooldown time
+    const cooldownTime = 5 * 60 * 1000;
+    // 1 sec = 1000 milliseconds in js 
+    // 1 min = 60 sec
+    // 5 min = 60 * 1000* 5 = 300000 milliseconds
+
+    // ager abhi tak cooldown period khatam nhi hua hai toh error 
+    if(timeDifference < cooldownTime){
+        // if 5 minutes have not passed
+        // then we don't increase the view count
+
+        return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    viewCount : tweet.viewCount
+                },
+                "Tweet view is already counted recently"
+            )
+        )
+    }
+
+    // if our 5 min cooldown passed then we just update the existingView.viewedAt to currentTime
+
+    existingView.viewedAt = currentTime;
+    await existingView.save();
+
+    // now we increase the tweet view count +1
+    const updatedTweet = await Tweet.findByIdAndUpdate(
+        tweetId,
+        {
+            $inc:{
+                viewCount: 1
+            }
+        },
+        {
+            new: true
+        }
+    )
+
+    // after updating the teweet we send the response 
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                viewCount: updatedTweet.viewCount
+            },
+            "Tweet view counted Successfully"
         )
     )
 })
