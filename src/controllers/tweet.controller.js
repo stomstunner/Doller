@@ -1519,3 +1519,18 @@ const incrementTweetView = asyncHandler(async(req, res) => {
     )
 })
 
+export  {
+    createTweet,
+    updateTweet,
+    deleteTweet,
+    getTweetById,
+    getUserTweets,
+    getCommunityFeed,
+    toggleTweetRepost,
+    getTweetReposts,
+    pinTweet,
+    unpinTweet,
+    incrementTweetView,
+    getUserProfileRepostedTweets,
+}
+
