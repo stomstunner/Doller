@@ -13,19 +13,21 @@ const videoSchema = new Schema(
         },
         title:{
             type: String,
-            required : true
+            required : true,
+            trim: true,
+            minLength: [1, "Video title cannot be empty"],
+            maxLength: [150, "Video title cannot exceed 150 characters"]
         },
         description:{
             type: String,
-            required : true
+            required : true,
+            trim: true,
+            maxLength: [5000,"Video description cannot exceed 5000 characters"]
         },
         duration:{
             type: Number,/// cloudinery url gives us the duration of the video also
-            required : true
-        },
-        views:{
-            type: Number,
-            default: 0
+            required : true,
+            min: 0
         },
         isPublished:{
             type: Boolean,
@@ -34,7 +36,8 @@ const videoSchema = new Schema(
         owner:{
             // he or she is the video uploader = user
             type : Schema.Types.ObjectId,
-            ref : "User"
+            ref : "User",
+            required: true
         },
         isDeleted: {
             type: Boolean,
@@ -43,6 +46,11 @@ const videoSchema = new Schema(
         deletedAt: {
             type: Date,
             default: null
+        },
+        viewCount: {
+            type: Number,
+            default: 0,
+            min: 0
         }
     },{
         timestamps: true
