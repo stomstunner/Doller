@@ -12,6 +12,8 @@ import commentRouter from "./routes/comment.routes.js";
 
 import likeRouter from "./routes/like.routes.js";
 
+import tweetRouter from "./routes/tweet.routes.js";
+
 const app = express();
 
 // we use the cors to give the acces to the valid authenticator 
@@ -61,6 +63,7 @@ app.use("/api/v1/users", userRouter);
 
 app.use("/api/v1/comments", commentRouter);
 app.use("/api/v1/likes", likeRouter);
+app.use("/api/v1/tweets", tweetRouter)
 
 
 
