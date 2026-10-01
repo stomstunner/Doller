@@ -203,7 +203,8 @@ const getTweetComments = asyncHandler(async(req, res)=>{
     // then we vlaidate the tweet exits or not 
     const tweetExists = await Tweet.exists(
         {
-            _id : tweetId
+            _id : tweetId,
+            isDeleted: false
         }
     )
 
