@@ -93,7 +93,10 @@ const registerUser = asyncHandler( async (req, res) =>{
             field?.trim() === ""
         )
     ){
-        throw new ApiError(400, "All fields are required")
+        throw new ApiError(
+            400,
+            "All fields are required"
+        )
         
     }
     
@@ -106,7 +109,10 @@ const registerUser = asyncHandler( async (req, res) =>{
 
     // if we have exited the username or email then we just have to throw the error
     if(existedUser){
-        throw new ApiError(409, "The user with this email and the username is already present")
+        throw new ApiError(
+            409,
+            "The user with this email and the username is already present"
+        )
     }
 
     // console.log(req.files);
