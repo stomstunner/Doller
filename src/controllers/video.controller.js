@@ -156,6 +156,20 @@ const createVideo = asyncHandler(async(req, res)=> {
     }
 
     // response
+    // return res
+    // .status(201)
+    // .json(
+    //     new ApiResponse(
+    //         201,
+    //         {
+    //             videoUrl: createdVideo.videoFile.url,
+    //             videoPublicId: createdVideo.videoFile.publicId,
+    //             thumbnailUrl: createdVideo.thumbnail.url
+    //        },
+    //         "Video uploaded successfully"
+    //     )
+    // )
+    // response
     return res
     .status(201)
     .json(
@@ -168,3 +182,5 @@ const createVideo = asyncHandler(async(req, res)=> {
 })
 
 
+
+export {createVideo}
