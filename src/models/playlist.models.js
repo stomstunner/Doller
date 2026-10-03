@@ -33,8 +33,14 @@ const playlistSchema = new Schema({
         default: false,
     },
     thumbnail: {
-        type: String,
-        default: ""
+        url: {
+            type: String,
+            default: ""
+        },
+        publicId: {
+            type: String,
+            default: ""
+        }
     },
     // so we store the ids of the videos in an array 
     videos: [
