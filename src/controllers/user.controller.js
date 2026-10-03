@@ -182,9 +182,15 @@ const registerUser = asyncHandler( async (req, res) =>{
     }
 
     // now we want to send the apiresponse 
-    return res.status(201).json(
+    return res
+    .status(201)
+    .json(
         // here we send the api response in a strusctured way because we already write how we want to send the response 
-        new ApiResponse(200, createdUser, "User registered successfully ")
+        new ApiResponse(
+            200,
+            createdUser, 
+            "User registered successfully "
+        )
     )
 
 
