@@ -8,6 +8,7 @@ import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js
 import { Comment } from "../models/comment.models.js";
 import { User } from "../models/user.models.js";
 import { Like } from "../models/like.models.js";
+import mongoose from "mongoose";
 
 // lets create the createVideo controller 
 const createVideo = asyncHandler(async(req, res)=> {
@@ -181,6 +182,417 @@ const createVideo = asyncHandler(async(req, res)=> {
     )
 })
 
+const getVideoById = asyncHandler(async(req, res) => {
+    const {videoId} = req.params;
 
+    validateObjectId(
+        videoId,
+        "Video ID"
+    )
 
-export {createVideo}
+    // now we make the aggragation pipeline for getting the information from the User, Video, Playlist, and many more 
+    const videoResult = await Video.aggregate(
+        [
+            // first we find the video 
+            {
+                $match:{
+                    _id: new mongoose.Types.ObjectId(
+                        videoId
+                    ),
+                    // video should be true and published 
+                    isDeleted: false,
+                    isPublished: true
+                }
+            },
+            {
+                $lookup:{
+                    from: "users",
+                    localField: "owner",
+                    foreignField: "_id",
+                    as: "owner",
+                    // now we use the pipeline to get only usefull details from the owner 
+                    pipeline: [
+                        {
+                            $project: {
+                                fullName: 1,
+                                username: 1,
+                                avatar: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            // now we use the addfield to take the 1st array as a obejct and store in owner filed 
+            {
+                $addFields:{
+                    owner:{
+                        $first: "owner"
+                    }
+                }
+            },
+
+            // now we chek ki hamara current user ne video ko like kiya hai ya nahi 
+            // we take the data from the likes collection 
+            // from the current video = _id
+            // foreignField  me likes ke kiisse se lena hai = video field se 
+
+            {
+                $lookup:{
+                    from: "likes",
+                    localField: "_id",
+                    foreignField: "video",
+                    as: "userLike",
+                    pipeline: [
+                        {
+                            $match: {
+                                likedBy: new mongoose.Types.ObjectId(
+                                    req.user._id
+                                )
+                            }
+                        }
+                    ]
+
+                }
+            },
+            // now we check the userLike field and sger uske adner 1 se jayda value hai toh matlab ki cureent user ne video ko like kiya hai 
+            {
+                $addFields:{
+                    isLiked:{
+                        // now we use the condition 
+                        $cond:[
+                            // expression
+                            // true
+                            // false
+                            {
+                                // now we use the $gt for finding the value grater than 
+                                $gt:[
+                                    // first value
+                                    // 2nd value 
+                                    {
+                                        $size: "$userLike"
+                                    },
+                                    0
+                                ]
+                            },
+                            true,
+                            false
+                        ]
+                    }
+                }
+            },
+            // now we get the total like for this current video 
+            {
+                $lookup: {
+                    from: "likes",
+                    // ham abhi videos me hai toh uska local fiels _id hai // curretn video ki id 
+                    localField: "_id",
+                    foreignField: "video",
+                    as:"likes",
+
+                }
+            },
+            // now we count the total likes from the likes array 
+            {
+                $addFields:{
+                    likeCount:{
+                        $size: "$likes"
+                    }
+                }
+            },
+            // now we chek ki hamra current user ne repost kiya hua hai ya nahi 
+            {
+                $lookup:{
+                    from: "reposts",
+                    localField:"_id",
+                    foreignField:"video",
+                    as: "userRepost",
+
+                    pipeline:[
+                        {
+                            $match: {
+                                _id: new mongoose.Types.ObjectId(req.user._id)
+                            }
+                        }
+                    ]
+                }
+            },
+            // now we add the addfileds, and check the userRepost field for the user reposted the video or not if yes then the field will have some value 
+            {
+                $addFields:{
+                    isReposted: {
+                        $cond:[
+                            // expression
+                            // true
+                            // false
+                            {   
+                                $gt: [
+                                    // 1st value the 2nds value
+                                    {
+                                        $size: "$userRepost"
+                                    },
+                                    0
+                                ]
+
+                            },
+                            true,
+                            false
+                        ]
+                    }
+                }
+            },
+            // now we get the total repost count with the help of reposted on that video size 
+            {
+                $lookup:{
+                    from:"reposts",
+                    // current video ki id 
+                    localField: "_id",
+                    foreignField: "video",
+                    as: "reposts"
+                }
+            },
+            // now we add a field jisme ham video ke kitne repost hai uska data store rakh lenge 
+            {
+                $addFields:{
+                    repostCount: {
+                        $size: "$reposts"
+                    }
+                }
+            },
+            // now we check the current user commented or not 
+
+            {
+                $lookup: {
+                    // kaha check karna hai
+                    from: "comments",
+                    // current video ki id
+                    localField: "_id",
+                    foreignField: "video",
+                    as: "userComment",
+                    // now we match ki hamara current user ho 
+                    pipeline:[
+                        {
+                            $match: {
+                                // comment kiss user ne kiya hai 
+                                owner: new mongoose.Types.ObjectId(
+                                    req.user._id
+                                ),
+                                // ager comment delete ho gya ho toh mat lana 
+                                isDeleted: false
+                            }
+                        }
+                    ]
+                }
+            },
+            // now we add a filed for checking ki iscommented 
+            {
+                $addFields:{
+                    hasCommented: {
+                        // now we use the conditions 
+                        $cond: [
+                            // expression
+                            // true
+                            // false
+                            {
+                                // here we use greater than 
+                                $gt: [
+                                    // 1st value then 2nd value 
+                                    {
+                                        $size: "userComment"
+                                    },
+                                    0
+                                ]
+                            },
+                            true,
+                            false
+                        ]
+                    }
+                }
+            },
+            // now we take the data from the playlist collection 
+            {
+                $lookup:{
+                    from: "playlists",
+
+                    // now we use the current video ka id in the nested pipeline so for that reason we store the id in a let 
+                    let:{
+                        videoId: "$_id"
+                    },
+                    as: "playlists",
+
+                    // now we use the pipeline for taking the non nested pipeline 
+                    pipeline:[
+                        {
+                            $match: {
+                                // owner kon hai 
+                                owner: new mongoose.Types.ObjectId(
+                                    req.user._id
+                                ),
+                                isDeleted: false
+                            }
+                            // now we make a field and check ki curret video playlist array me hai ya nahi 
+                        },
+                        {
+                            $addFields:{
+                                isAdded:{
+                                    // in ka use karnenge jisse ham koi array me koi value hai ya nahi woh pata kar sakte hai and it gives true or false
+                                    $in:[
+                                        // kisko khojna hai
+                                        // kaha khojna hai 
+                                        // $$ se variable access inside the nestedin 
+                                        // $ filed 
+                                        "$$videoId",
+                                        "$videos"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            $project:{
+                                name: 1,
+                                isPublic: 1,
+                                isAdded: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            // now we check user has any playlist or Not
+            {
+                $addFields: {
+                    hasPlaylists: {
+                        // now we use the conditions
+                        $cond: [
+                            {
+                                $gt:[
+                                    {
+                                        $size: "playlists"
+                                    },
+                                    0
+                                ]
+                            },
+                            true,
+                            false
+                        ]
+                    }
+                }
+            },
+            // now we check current video is added to any playlist or not 
+            // ye ham khoj rahe hai ki hamare bahut sare playlists me se kis kis me hamara video add hai 
+            {
+                $addFields:{
+                    isAddedToPlaylist:{
+                        $cond:[
+                            {
+                                // greater than
+                                $gt:[
+                                    {
+                                        $size:{
+                                            // ab ham playlist array me baht sare playlists me se woh playlist filter karnege jisme hamara video ho 
+                                            $filter:{
+                                                // kiss array ko filter karna hai 
+                                                // uska ky naam dena hai 
+                                                // ckeck karnege ki current playlist ka isAdded ture hai ya nhai 
+                                                input: "playlists",
+                                                as: "playlist",
+                                                cond:{
+                                                    $eq:[
+                                                        "$$playlist.isAdded",
+                                                        true
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    },
+                                    // ager kisi bhi playlist me video nahi hai toh size 0 ho jayega 
+                                    
+                                    0
+                                ]
+                            },
+                            true,
+                            false
+                        ]
+                    }
+                }
+            },
+            // now we project only required fields
+            {
+                $project: {
+
+                    // video information
+                    videoFile: 1,
+                    thumbnail: 1,
+                    title: 1,
+                    description: 1,
+                    duration: 1,
+
+                    // current view count
+                    viewCount: 1,
+
+                    // owner information
+                    owner: 1,
+
+                    // like information
+                    likeCount: 1,
+                    isLiked: 1,
+
+                    // repost information
+                    repostCount: 1,
+                    isReposted: 1,
+
+                    // comment information
+                    hasCommented: 1,
+
+                    // playlist information
+                    hasPlaylists: 1,
+                    isAddedToPlaylist: 1,
+                    playlists: 1,
+
+                    // video dates
+                    createdAt: 1,
+                    updatedAt: 1
+                }
+            }
+
+        ]
+    )
+
+    // ager videoResult ka length 0 hai toh iska matlab hai ki hamara pass koi video nahi hai 
+    if(videoResult.length === 0){
+        throw new ApiError(
+            404,
+            "Video not found"
+        )
+    }
+
+    const video = videoResult[0];
+
+    // now we increase the view count 
+    const updatedVideo = await Video.findByIdAndUpdate(
+        videoId,
+        {
+            $inc: {
+                viewCount: 1
+            }
+        },
+        {
+            new : true
+        }
+    )
+    // now we increse the video.viewCount ka vlaue with the updated.viewCount because we run the aggregation first 
+    video.viewCount = updatedVideo.viewCount;
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            video,
+            "Video Fetched Successfully"
+        )
+    )
+})
+
+export {
+    createVideo,
+    getVideoById,
+}
