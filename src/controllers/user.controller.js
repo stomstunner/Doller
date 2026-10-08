@@ -12,9 +12,11 @@ import {deleteFromCloudinary, uploadOnCloudinary} from "../utils/cloudinary.js"
 
 // now we import the api response for sending the data
 import { ApiResponse } from "../utils/ApiResponse.js"
+import { ApiError } from "../utils/ApiError.js"
 import jwt  from "jsonwebtoken"
 import mongoose from "mongoose"
 import { WatchHistory } from "../models/watchHistory.models.js"
+import { validateObjectId } from "../utils/validateObjectId.js"
 
 // so here we register the user with the help of asynchandler = jo ki ek function aceept karta hai // it is an higher order fucntion( fucntion ke liye fucntion)
 
@@ -966,6 +968,137 @@ const getWatchHistory = asyncHandler(async(req, res)=> {
     )
 })
 
+const updateWatchDuration = asyncHandler(async(req, res)=> {
+    // here in this controller we update the watch duration of the video watch history 
+    const {videoId} = req.params;
+    validateObjectId(
+        videoId,
+        "Video ID"
+    )
+
+    // now we get the watchDuration, videoDuration and lastPosition from the req.body 
+    const {watchDuration, videoDuration, lastPosition} = req.body ;
+    // if(!watchDuration || !videoDuration){
+    //     throw new ApiError(
+    //         400,
+    //         "Watch duration and video duration is required"
+    //     )
+    // }
+    if(watchDuration === undefined || watchDuration === null || videoDuration === undefined || videoDuration === null ){
+        throw new ApiError(
+            400,
+            "Watch duration and video duration is required"
+        )
+    }
+    // now we chaki ki hamra video duratioon and watch duration ager unka type number nahi hua toh bhi hame error dena hai 
+    if(typeof watchDuration !== "number" || typeof videoDuration !== "number"){
+        throw new ApiError(
+            400,
+            "Watch duration and video duration must be a number"
+        )
+    }
+
+    if(watchDuration < 0 || videoDuration <= 0){
+        throw new ApiError(
+            400,
+            "Invalid watch duration and video duration"
+        )
+    }
+
+    // now we convert the video id into the video object id 
+    const videoObjectId = new mongoose.Types.ObjectId(videoId);
+
+    // now we check the video exists or not 
+    const video = await Video.findOne({
+        _id: videoObjectId,
+        isDeleted: false,
+        isPublished: true
+    })
+
+    // error if exists not 
+    if(!video){
+        throw new ApiError(
+            404,
+            "Video Not Found"
+        )
+    }
+
+    // now we find what is the watch percentage of the video 
+    const watchPercentage = (watchDuration / videoDuration) * 100;
+
+    // now we create a variable that chek the video is isCompleted 
+    let isCompleted = false;
+    if(watchPercentage >= 90){
+        isCompleted = true
+    }
+
+    // now we create a varibale that store the lastPosition of the video ki user ne last kha tak video dekh tha 
+    let finalLastPosition = watchDuration;
+    // ham isme abhi ka watch duration store kar ke rakhe hue hai jo front se aaya hai 
+
+    // lastpostion undefined toh nhai hai na 
+    //  real hai toh ander jao 
+    if(lastPosition !== undefined){
+        // number toh hai last lastPosition
+        if(typeof lastPosition === "number"){
+            // 0 se toh bara hai na 
+            if(lastPosition >= 0){
+                // ab ham final lastpoistion me last position ke store akr denge 
+                finalLastPosition = lastPosition
+            }
+        }
+    }
+
+    // now we make sure ki hamara last position video ke duration se hi na bara ho jaye ager hus toh ham final last position me video ka duration hi daal denge 
+    if(finalLastPosition >  videoDuration){
+        finalLastPosition = videoDuration
+    }
+
+    // now we make sure that our watch percentage should not be more than the 100
+    let finalWatchPercentage = watchPercentage;
+    if(finalWatchPercentage > 100){
+        finalWatchPercentage = 100
+    }
+    if(finalWatchPercentage < 0){
+        finalWatchPercentage = 0
+    }
+
+    // now we update the watchHistory for the current user and the current video 
+    const watchHistory = await WatchHistory.findByIdAndUpdate(
+        {
+            // current user and the current user 
+            user : req.user._id,
+            video: videoObjectId
+        },
+        {
+            $set:{
+                // watch duration means ki user ne video kitna dekha aur lastpistion means ki abhi last me user kis position pe that 
+                watchDuration,
+                watchPercentage : finalWatchPercentage,
+                isCompleted,
+                lastPosition : finalLastPosition,
+                lastWatchedAt: new Date()
+            }
+        },
+        {
+            // now we want to send the updated document 
+            new : true,
+            // if document do not exits then create a new one 
+            upsert: true
+        }
+    )
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            watchHistory,
+            "Watch History Updated Successfully"
+        )
+    )
+})
+
 
 export {
     registerUser, 
@@ -979,5 +1112,5 @@ export {
     updateUserCoverImage,
     getUserChannelProfile,
     getWatchHistory,
-
+    updateWatchDuration,
 }
