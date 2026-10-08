@@ -10,7 +10,8 @@ import {
     updateUserAvatar, 
     updateUserCoverImage, 
     getUserChannelProfile, 
-    getWatchHistory
+    getWatchHistory,
+    updateWatchDuration
 } from "../controllers/user.controller.js";
 
 const router = Router()
@@ -73,7 +74,8 @@ router.route("/avatar").patch(verifyJWT, upload.single("avatar"), updateUserAvat
 router.route("/cover-image").patch(verifyJWT, upload.single("coverImage"), updateUserCoverImage)
 router.route("/c/:username").get(verifyJWT, getUserChannelProfile)
 router.route("/history").get(verifyJWT, getWatchHistory)
-
+router.route("/update-watch-duration/:videoId").patch(verifyJWT,
+updateWatchDuration);
 
 
 
