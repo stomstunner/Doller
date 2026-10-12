@@ -335,26 +335,42 @@ const globalSearch = asyncHandler(async(req, res)=> {
 
     if(page ===1 && req.query.suggestions !== "true"){
         // now we search ki same history current user ke history me save hai ya nahi 
-        const existingSearch = await GlobalSearch.findOne({
-            user : req.user._id,
-            query,
-            searchType,
-            isDeleted : false,
-            searchedAt: {
-                $gte :new Date(Date.now() - 50000)
-            }
-        })
 
-        if(!existingSearch){
-            await GlobalSearch.create({
+        // now we normalize the query 
+        const normalizedQuery = query.toLowerCase().trim();
+
+        // now we update the existing history and create history becasue we want ki hamre pass double search history toh na hi ho but i want ki jaisse hi dublicated search history search ho toh pahle ham check karnege uske baad ham us search ho sabse pahle result me show karnege 
+        
+        await GlobalSearch.findOneAndUpdate(
+            {
                 user: req.user._id,
-                query,
-                searchType,
-                resultCount,
-                isDeleted: false,
-                searchedAt: new Date()
-            });
-        }
+                normalizedQuery,
+                searchType
+            },
+            {
+                // now we set the updation of the filed ki jo bhi mil gya usse update akr do isme bass  important hai ki ham uska date recet wla save akr rahe hai 
+                $set: {
+                    // purana content mil gya toh ham bass uska date update karenge 
+                    searchedAt: new Date()
+                },
+                // ager hamne nay content nahi mila toh ham set karnege sare vlaue ko 
+                $setOnInsert: {
+                    query,
+                    normalizedQuery,
+                    searchType,
+                    user: req.user._id,
+                    resultCount,
+                    isDeleted: false
+                }
+            },
+            {
+                upsert: true,
+                // it mease ki ager present nahi ho toh naya create akr denge 
+                new: true,
+                runValidators: true,
+                setDefaultsOnInsert: true
+            }
+        )
     }
 
     return res
@@ -474,3 +490,5 @@ const getGLobalHistory = asyncHandler(async(req, res) => {
 
 
 })
+
+// now we make the 
