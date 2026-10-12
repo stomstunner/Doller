@@ -39,6 +39,12 @@ const globalSearchSchema = new Schema(
         isDeleted: {
             type: Boolean,
             deafult: false
+        },
+        normalizedQuery:{
+            type: String,
+            required: true,
+            lowercase: true,
+            trim : true
         }
     }, 
     {
@@ -62,7 +68,8 @@ globalSearchSchema.index(
     {
         user: 1,
         searchType: 1,
-        searchedAt: -1
+        // searchedAt: -1,
+        normalizedQuery: 1
     },
     {
         unique: true
