@@ -38,7 +38,7 @@ const globalSearchSchema = new Schema(
         },
         isDeleted: {
             type: Boolean,
-            deafult: false
+            default: false
         },
         normalizedQuery:{
             type: String,
