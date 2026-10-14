@@ -491,4 +491,4 @@ const getGLobalHistory = asyncHandler(async(req, res) => {
 
 })
 
-// now we make the 
+// now we make the delete controller for shadow delte the history from the databse
