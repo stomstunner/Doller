@@ -63,6 +63,17 @@ const videoSchema = new Schema(
             type: Number,
             default: 0,
             min: 0
+        },
+        category:{
+            type: String,
+            lowercase: true,
+            default: null,
+            trim: true,
+            index: true
+        },
+        tags:{
+            type: [String],
+            default: []
         }
     },{
         timestamps: true
