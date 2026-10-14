@@ -8,12 +8,12 @@ import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js
 import { Comment } from "../models/comment.models.js";
 import { User } from "../models/user.models.js";
 import { Like } from "../models/like.models.js";
-import mongoose from "mongoose";
+import mongoose, { set } from "mongoose";
 
 // lets create the createVideo controller 
 const createVideo = asyncHandler(async(req, res)=> {
     // we take the tittle and description from the user 
-    const {title, description} = req.body;
+    const {title, description, category, tags} = req.body;
     // check if we have tittle or description not 
     if(!title?.trim()){
         throw new ApiError(
@@ -27,6 +27,26 @@ const createVideo = asyncHandler(async(req, res)=> {
             "Description not found"
         )
     }
+
+    const videoCategory = category?.trim().toLowerCase() || null;
+    // now we store the tag only if provided 
+    let videoTags = [];
+    if(Array.isArray(tags)){
+        videoTags = tags;
+    }
+    else if(typeof tags === "string"){
+        videoTags = tags.split(",");
+    }
+
+    // now we store only filtered tags 
+    videoTags = videoTags
+    .filter((tag) => typeof tag === "string")
+    .map((tag) => tag.trim().toLowerCase())
+    .filter((tag) => tag.length > 0);
+
+    // now we want that ki ham bass single value ko hi rakhe duplicate ko hata de 
+    videoTags = [...new set(videoTags)];
+
 
     // now we get the video file from  req.files
     // multer gives us access to uploaded files through req.fileds
@@ -549,7 +569,9 @@ const getVideoById = asyncHandler(async(req, res) => {
 
                     // video dates
                     createdAt: 1,
-                    updatedAt: 1
+                    updatedAt: 1,
+                    category: 1,
+                    tags: 1
                 }
             }
 
