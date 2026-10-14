@@ -419,6 +419,12 @@ const getGLobalHistory = asyncHandler(async(req, res) => {
         userId,
         "User ID"
     )
+    if(!userId){
+        throw new ApiError(
+            404,
+            "User not found"
+        )
+    }
 
     // now we write the code for pagination 
     // pagination code 
@@ -491,4 +497,67 @@ const getGLobalHistory = asyncHandler(async(req, res) => {
 
 })
 
-// now we make the delete controller for shadow delte the history from the databse
+// now we make the delete controller for shadow delte the history from the Database
+
+const deleteGlobalSearchHistory = asyncHandler(async(req, res)=>{
+    const{userId} = req.user._id;
+    validateObjectId(
+        userId,
+        "User ID"
+    )
+    
+    if(!userId){
+        throw new ApiError(
+            404,
+            "User not found"
+        )
+    }
+
+    const {historyId} = req.params;
+    validateObjectId(
+        historyId,
+        "History ID"
+    )
+    if(!historyId){
+        throw new ApiError(
+            404,
+            "History is required"
+        )
+    }
+
+
+    const searchHistory = await GlobalSearch.findOne(
+        {
+            _id:historyId,
+            user: userId,
+            isDeleted: false
+        }
+    )
+
+    if(!searchHistory){
+        throw new ApiError(
+            404,
+            "History is not found"
+        )
+    }
+
+    searchHistory.isDeleted = true;
+    await searchHistory.save();
+
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {},
+            "Search History deleted Successfully"
+        )
+    )
+})
+
+export {
+    globalSearch,
+    getGLobalHistory,
+    deleteGlobalSearchHistory
+}
