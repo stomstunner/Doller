@@ -19,6 +19,10 @@ const tweetSchema = new Schema({
             ref: "User",
         }
     ],
+    shareCount: {
+        type: Number,
+        default: 0
+    },
     isDeleted : {
         type: Boolean,
         default: false,
