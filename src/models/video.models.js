@@ -41,6 +41,10 @@ const videoSchema = new Schema(
             required : true,
             min: 0
         },
+        shareCount: {
+            type: Number,
+            default: 0
+        },
         isPublished:{
             type: Boolean,
             default: true
