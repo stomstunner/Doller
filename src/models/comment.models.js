@@ -55,6 +55,10 @@ const CommentSchema = new Schema(
         editedAt : {
             type: Date,
             default : null
+        },
+        shareCount: {
+            type: Number,
+            default: 0
         }
 
     },{timestamps: true}
