@@ -22,24 +22,154 @@ const SIGNAL_WEIGHT = {
     completeWatch: 5,
     longWatch : 4,
     partialWatch: 2,
+
     like: 5,
     commentLike: 4,
+    comment: 3,
+
     repost : 6,
     share: 6,
+
     playlistAdd: 4,
-    comment: 3,
-    search: 4
+    search: 4,
+
+    subscription: 4,
+    follower: 4
 }
 
-const CROSS_PLATFORM_WEIGHT = 0.5;
+    // Convert content text into simple interest keywords.
+    // This is a basic fallback, not a replacement for real topic tags.
+    /*
+        Code kya kar raha hai
+    1. text = ""
+    Agar function ko text na mile, toh khaali string use hoti hai. (Lekin null pass kiya toh yeh default apply nahi hota.)
+    2. stopWords
+    Aise aam shabd hataata hai jo topic samajhne mein zyada madad nahi karte—jaise "the", "and", "hai", "aur".
+    3. .toLowerCase()
+    Sab letters lowercase karta hai, taaki "Cricket" aur "cricket" alag na gine jaayen.
+    4. URL hataana
+    https://... jaise links hataata hai, kyunki link ke tukde topic keywords nahi hote.
+    5. Punctuation hataana
+    Comma, !, ? jaise characters ko spaces se badalta hai. Unicode regex ki wajah se Hindi letters bhi preserve hote hain.
+    6. .split(/\s+/)
+    Text ko spaces ke basis par words mein todta hai.
+    7. .filter(...)
+    3 se chhote letters wale words, stop words, aur sirf digits wale words hata deta hai.
+    8. new Set(...)
+    Duplicate words hata deta hai. Phir [...] Set ko wapas array bana deta hai.
+    Example:
+    "Cricket! India vs India — match highlights" ka result lagbhag ["cricket", "india", "match", "highlights"] hoga. */
+
+    const getKeywords = (text = "") => {
+        const stopWords = new Set([
+            "this", "that", "with", "from", "have", "your", "what", "when", "where", "will", "been", "they", "them", "then", "than", "the", "and", "for", "you", "are", "but", "not", "was", "were", "has", "had", "his", "her", "she", "him", "its", "our", "out", "all", "any", "can", "could", "would", "should", "about", "after", "before", "because", "between", "into", "over", "under", "while", "who", "why", "how", "also", "just", "very", "more", "most", "some", "such", "only", "other", "each", "every", "here", "there",
+
+            "hai", "hain", "tha", "thi", "the", "ho", "hoga", "hogi", "honge",
+            "aur", "ka", "ki", "ke", "ko", "se", "par", "mein", "me", "toh",
+            "ye", "yah", "woh", "voh", "kya", "kaise", "kab", "kahan", "kyun",
+            "mera", "meri", "mere", "tera", "teri", "tere", "unka", "unki", "unke",  "hum", "ham", "tum", "aap", "apna", "apni", "apne", "nahi", "nahin", "bhi", "ab", "jab", "tab", "lekin", "magar", "phir", "sirf", "bahut"
+        ]);
+
+        return [
+            ...new Set(
+                text
+                    .toLowerCase()
+                    .replace(/https?:\/\/\S+/g, " ")
+                    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+                    .split(/\s+/)
+                    .filter((word) =>
+                        word.length >= 3 && !stopWords.has(word) && !/^\d+$/.test(word)
+                    )
+            )
+        ];
+    };
+
+    const CROSS_PLATFORM_WEIGHT = 0.5;
+
+
+    /**
+     * Flow yeh hai:
+        1. Shuru mein empty profile banao: const profile = new Map()
+        2. User ki activity—jaise watched video ya liked tweet—ke text ko addInterest(profile, text, weight, date) mein do.
+        3. addInterest text se keywords nikaal kar unke scores Map mein add karta hai.
+        4. Candidate content ke liye calculateInterestScore woh scores padhta aur jodta hai.
+        Example: "cricket highlights" par user ne weight 5 wali activity ki. Agar time decay 1 hai, profile mein cricket → 5 aur highlights → 5 add honge. Candidate "cricket match" ka score phir 5 hoga, kyunki match profile mein nahi hai.
+     */
+
+    // now we make a system ki haamra activlites ke base pe weight de ager hamra activity recent ka hai toh uska weight pura hoga but woh ager purane activivties se compare hoga toh uska weight ghat jayega 
+    // half time is 7 days
+    const getTimeDelay = (date)=>{
+        if(!date){
+            return 1;
+        }
+
+        const timestamp = new Date(date).getTime();
+
+        // Invalid dates should not create NaN scores.
+        if (Number.isNaN(timestamp)) {
+            return 1;
+        }
+        const ageInDays = Math.max(
+            0,
+            (Date.now() - timestamp)/( 1000 * 60 * 60 * 24)
+        );
+        // Exponential decay: recent activities matter more.
+        return Math.pow(0.5, ageInDays / 7);
+    }
+
+
+    // now we add weightage keyword to the user intrest profile 
+
+    // Add weighted keywords to a user's interest profile.
+    // The Map stores each keyword and its accumulated interest score.
+    // har word ka intrest score store karenge / nikalnge
+
+    const addInterest = (profile, text, weight, date)=>{
+
+        const finalWeight = weight * getTimeDelay(date);
+        // iska matlab hua  ki ham apna weight of intrest ko depend karenge relevency pe ki kitna purana activlity hai 
+
+        const keywords = getKeywords(text);
+        // extract the usefull keyword from the content 
+
+
+        // Add the new activity weight to the existing keyword score.
+        // like hamne koi video dekha usse koi activity generate hui toh ham usse previous keyword ka score badha denge 
+        for(const keyword of keywords){
+
+            profile.set(
+                keyword ,
+                (profile.get(keyword) || 0) + finalWeight
+            )
+        }
+    }
+
+    // now we calculate how closly content matcheses the user intrest 
+
+    // text: jis video ya tweet ko recommend karne ka soch rahe hain.
+    // interestProfile: Map jisme user ke har keyword ka interest score hai. Jaise cricket → 8, gaming → 3.
+    export const calculateInterestScore = (text, interestProfile)=>{
+        const keywords = getKeywords(text);
+
+        let score = 0;
+        for(const keyword of keywords){
+            // Keyword profile mein milta hai toh uska score add hota hai. Nahi milta toh 0 add hota hai.
+            score += interestProfile.get(keyword) || 0;
+        }
+        return score;
+    }
 
 // now we built the interest profile of the user 
-const builtUserIntrestProfile = async(userId)=>{
+export const builtUserIntrestProfile = async(userId)=>{
     // first of all we validate the user id
     validateObjectId(
         userId,
         "User ID"
     );
+
+     // separate profiles for video and tweet recommendations
+    const videoProfile = new Map();
+    const tweetProfile = new Map();
 
     // now we get the this user watch history 
     const watchHistory = await WatchHistory.aggregate([
@@ -135,7 +265,8 @@ const builtUserIntrestProfile = async(userId)=>{
                 tags : history.tags || [],
 
                 // this weight represtnt he user intrest 
-                weight
+                weight,
+                createdAt: history.lastWatchedAt
             }
         }
     )
@@ -250,6 +381,32 @@ const builtUserIntrestProfile = async(userId)=>{
                     ]
                 }
             },
+            {
+                  // now we check which tweets the user shared
+                $lookup:{
+                    from: "shares",
+                    let:{
+                        tweetId: "_id"
+                    },
+                    as: "userShares",
+                    pipeline:[
+                        {
+                            $match:{
+                                sharedBy: new mongoose.Types.ObjectId(userId),
+                                $expr:{
+                                    $eq:[
+                                        "$tweet",
+                                        "$$tweetId"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            $limit: 1
+                        }
+                    ]
+                }
+            },
             // now we calculate the weight of the each activity
             {
                 $addFields:{
@@ -310,6 +467,25 @@ const builtUserIntrestProfile = async(userId)=>{
                             SIGNAL_WEIGHT.repost,
                             0
                         ]
+                    },
+                    shareWeight:{
+                        // now we apply the condition 
+                        $cond:[
+                            // expresssion
+                            // true
+                            // false
+                            {
+                                $gt:[
+                                    // greater than
+                                    {
+                                        $size:"$userShares"
+                                    },
+                                    0
+                                ]
+                            },
+                            SIGNAL_WEIGHT.share,
+                            0
+                        ]
                     }
                 }
             },
@@ -320,7 +496,8 @@ const builtUserIntrestProfile = async(userId)=>{
                         $add:[
                             "$likeWeight",
                             "$commentWeight",
-                            "$repostWeight"
+                            "$repostWeight",
+                            "$shareWeight"
                         ]
                     }
                 }
@@ -361,7 +538,8 @@ const builtUserIntrestProfile = async(userId)=>{
             return {
                 tweetId: tweet.tweetId,
                 text: tweet.text || "",
-                weight: tweet.weight || ""
+                weight: tweet.weight || "",
+                createdAt: tweet.createdAt
             }
         }
     );
@@ -400,7 +578,8 @@ const builtUserIntrestProfile = async(userId)=>{
                         },
                         {
                             $project:{
-                                video: 1
+                                video: 1,
+                                createdAt: 1
                             }
                         }
                     ]
@@ -428,6 +607,7 @@ const builtUserIntrestProfile = async(userId)=>{
                         {
                             $project:{
                                 title: 1,
+                                description: 1,
                                 category: 1,
                                 tags: 1
                             }
@@ -444,9 +624,16 @@ const builtUserIntrestProfile = async(userId)=>{
                 $project:{
                     _id: 0,
                     videoId: "$video._id",
-                    text: "$video.title",
+                    text: {
+                        $concat: [
+                            { $ifNull: ["$video.title", ""] },
+                            " ",
+                            { $ifNull: ["$video.description", ""] }
+                        ]
+                    },
                     category:"$video.category",
                     tags: "$video.tags",
+                    createdAt: "$comment.createdAt",
                     weight: SIGNAL_WEIGHT.commentLike,
                 }
             }
@@ -508,7 +695,8 @@ const builtUserIntrestProfile = async(userId)=>{
                         },
                         {
                             $project:{
-                                content: 1
+                                content: 1,
+                                createdAt: 1
                             }
                         }
                     ]
@@ -522,6 +710,7 @@ const builtUserIntrestProfile = async(userId)=>{
                     _id:0,
                     tweetId: "$tweet._id",
                     text: "$tweet.content",
+                    createdAt: "$tweet.createdAt",
                     weight: SIGNAL_WEIGHT.commentLike,
                 }
             }
@@ -536,18 +725,20 @@ const builtUserIntrestProfile = async(userId)=>{
                 text: video.text || "",
                 category: video.category || null,
                 tags: video.tags || [],
-                weight: video.weight
+                weight: video.weight,
+                createdAt: video.createdAt
             }
         }
     )
 
-    // now we convert the liked tweet comment 
+    // now we convert the liked tweet comment into tweetintrest 
     const tweetCommentLikeInterests = tweetCommentLikes.map(
         (tweet)=>{
             return{
                 tweetId: tweet.tweetId,
                 text: tweet.text || "",
-                weight: tweet.weight
+                weight: tweet.weight,
+                createdAt: tweet.createdAt,
             }
         }
     )
@@ -564,6 +755,14 @@ const builtUserIntrestProfile = async(userId)=>{
         ...tweetInterests,
         tweetCommentLikeInterests
     ]
+
+    // now we get the user search history
+    const searchHistory = await Search.aggregate(
+        [
+            // we want the searches that is done by the current user 
+            
+        ]
+    )
     
 
     // now we take the video topics as a weaer remoendation for the tweet 
