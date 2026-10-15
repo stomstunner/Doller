@@ -15,6 +15,7 @@ import { View } from "../models/view.models.js";
 import { Like } from "../models/like.models.js";
 import { Repost } from "../models/repost.models.js";
 import { Tweet } from "../models/tweet.models.js";
+import { Share } from "../models/share.models.js";
 
 // now we have to define the each user activity 
 const SIGNAL_WEIGHT = {
@@ -22,12 +23,15 @@ const SIGNAL_WEIGHT = {
     longWatch : 4,
     partialWatch: 2,
     like: 5,
+    commentLike: 4,
     repost : 6,
     share: 6,
     playlistAdd: 4,
     comment: 3,
     search: 4
 }
+
+const CROSS_PLATFORM_WEIGHT = 0.5;
 
 // now we built the interest profile of the user 
 const builtUserIntrestProfile = async(userId)=>{
@@ -332,15 +336,16 @@ const builtUserIntrestProfile = async(userId)=>{
             {
                 $project:{
                     _id: 0,
-                    tweetId: "_id",
+                    tweetId: "$_id",
                     text: "$content",
-                    weight: 1
+                    weight: 1,
+                    createdAt: 1
                 }
             },
             // now we want the latest revelent tweet first 
             {
                 $sort:{
-                    tweetId: -1// dencending order 
+                    createdAt: -1// dencending order 
                 }
             },
             // we want only top 100 tweet 
@@ -361,37 +366,236 @@ const builtUserIntrestProfile = async(userId)=>{
         }
     );
 
+    // now we use the video comment liked by user  that belong to video 
+
+    const videoCommentLikes = await Like.aggregate(
+        [
+            // first top level aggregation pipeline 
+            {
+                // match the current users like commented 
+                $match: {
+                    likedBy: new mongoose.Types.ObjectId(userId),
+                    comment:{
+                        exists: true,
+                        $ne: null
+                    }
+                }
+            },
+            // now we get the like commented
+            {
+                $lookup:{
+                    from:"comments",
+                    localField: "comment",
+                    foreignField:"_id",
+                    as:"comment",
+                    pipeline:[
+                        {
+                            $match:{
+                                isDeleted: false,
+                                video:{
+                                    $exists: true,
+                                    $ne: null
+                                }
+                            }
+                        },
+                        {
+                            $project:{
+                                video: 1
+                            }
+                        }
+                    ]
+
+                }
+            },
+            {
+                // convert comment array into object 
+                $unwind:"$comment"
+            },
+            // now we get the video associated with the comment 
+            {
+                $lookup:{
+                    from: "videos",
+                    localField:"comment.video",
+                    foreignField:"_id",
+                    as:"video",
+                    pipeline:[
+                        {
+                            $match:{
+                                isDeleted:false,
+                                isPublished: true,
+                            }
+                        },
+                        {
+                            $project:{
+                                title: 1,
+                                category: 1,
+                                tags: 1
+                            }
+                        }
+                    ]
+                    
+                }
+            },
+            {
+                $unwind: "$video"
+            },
+            // simplified projection for the video comment 
+            {
+                $project:{
+                    _id: 0,
+                    videoId: "$video._id",
+                    text: "$video.title",
+                    category:"$video.category",
+                    tags: "$video.tags",
+                    weight: SIGNAL_WEIGHT.commentLike,
+                }
+            }
+        ]
+    )
+
+    // now we find that comments that is liked by the user that belong to tweets 
+    const tweetCommentLikes = await Like.aggregate(
+        [
+            {
+                $match:{
+                    likedBy: new mongoose.Types.ObjectId(userId),
+                    comment:{
+                        $exists: true,
+                        $ne: null
+                    }
+                }
+            },
+            // now we go to the comment 
+            {
+                $lookup:{
+                    from:"comments",
+                    localField: "comment",
+                    foreignField:"_id",
+                    as:"comment",
+                    pipeline:[
+                        {
+                            $match:{
+                                isDeleted: false,
+                                tweet:{
+                                    $exists: true,
+                                    $ne: null
+                                }
+                            }
+                        },
+                        {
+                            $project:{
+                                tweet: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $unwind:"$comment"
+            },
+            {
+                // no we look into the tweet ki ye likese kiss comment ke tweet ka like hai 
+                $lookup:{
+                    from: "tweets",
+                    localField:"comment.tweet",
+                    foreignField:"_id",
+                    as: "tweet",
+                    pipeline:[
+                        {
+                            $match:{
+                                isDeleted: false
+                            }
+                        },
+                        {
+                            $project:{
+                                content: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $unwind: "$tweet"
+            },
+            {
+                $project:{
+                    _id:0,
+                    tweetId: "$tweet._id",
+                    text: "$tweet.content",
+                    weight: SIGNAL_WEIGHT.commentLike,
+                }
+            }
+        ]
+    )
+
+    // now we conver the liked video comemnt to the videoInterests
+    const videoCommentLikeInterests = videoCommentLikes.map(
+        (video)=>{
+            return{
+                videoId: video.videoId,
+                text: video.text || "",
+                category: video.category || null,
+                tags: video.tags || [],
+                weight: video.weight
+            }
+        }
+    )
+
+    // now we convert the liked tweet comment 
+    const tweetCommentLikeInterests = tweetCommentLikes.map(
+        (tweet)=>{
+            return{
+                tweetId: tweet.tweetId,
+                text: tweet.text || "",
+                weight: tweet.weight
+            }
+        }
+    )
+
+    // now we set the video intrest 
+    const videoInterests = [
+        ...watchedVideoInterests,
+        ...videoCommentLikeInterests
+    ]
+
+
+    // now we combine the tweet activlites and tweet like comment acctivities 
+    const actualTweetInterests = [
+        ...tweetInterests,
+        tweetCommentLikeInterests
+    ]
+    
+
     // now we take the video topics as a weaer remoendation for the tweet 
-    const videoBasedTweetInterests = watchedVideoInterests.map(
+    const videoBasedTweetInterests = videoInterests.map(
         (interest)=> {
             return{
                 text: interest.text,
                 category : interest.category,
                 tags : interest.tags,
-                weight : interest.weight*0.5
+                weight : interest.weight * CROSS_PLATFORM_WEIGHT
             }
         }
     )
 
     // now we use tweet topics as a signal for video recommendations
-    const tweetBasedVideoInterests = tweetInterests.map(
+    const tweetBasedVideoInterests = actualTweetInterests.map(
         (interest) => {
             return {
+                tweetId: interest.tweetId,
                 text: interest.text,
-                weight: interest.weight * 0.5,
-                category : interest.category,
-                tags : interest.tags,
+                weight: interest.weight * CROSS_PLATFORM_WEIGHT,
             };
         }
     );
 
     const combinedVideoIntrests = [
-        ...watchedVideoInterests,
+        ...videoInterests,
         ...tweetBasedVideoInterests
     ]
 
     const combinedTweetInterests = [
-        ...tweetInterests,
+        ...actualTweetInterests,
         ...videoBasedTweetInterests
     ];
 
