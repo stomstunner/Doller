@@ -12,7 +12,6 @@ import { WatchHistory } from "../models/watchHistory.models.js";
 import { Like } from "../models/like.models.js";
 import { GlobalSearch } from "../models/globalSearch.models.js";
 import { View } from "../models/view.models.js";
-import { Like } from "../models/like.models.js";
 import { Repost } from "../models/repost.models.js";
 import { Tweet } from "../models/tweet.models.js";
 import { Share } from "../models/share.models.js";
@@ -232,7 +231,7 @@ export const builtUserIntrestProfile = async(userId)=>{
                 title: "$video.title",
                 description: "$video.description",
                 category: "$video.category",
-                tags: "$tags",
+                tags: "$video.tags",
                 watchPercentage: 1,
                 isCompleted: 1,
                 watchDuration: 1,
@@ -252,7 +251,7 @@ export const builtUserIntrestProfile = async(userId)=>{
             if(history.isCompleted || history.watchPercentage >= 90){
                 weight= SIGNAL_WEIGHT.completeWatch;
             }
-            else if(SIGNAL_WEIGHT.watchPercentage >= 50){
+            else if(history.watchPercentage >= 50){
                 weight = SIGNAL_WEIGHT.longWatch;
             }
 
@@ -755,7 +754,7 @@ export const builtUserIntrestProfile = async(userId)=>{
     // now we combine the tweet activlites and tweet like comment acctivities 
     const actualTweetInterests = [
         ...tweetInterests,
-        tweetCommentLikeInterests
+        ...tweetCommentLikeInterests
     ]
 
     // now we get the user search history
@@ -904,7 +903,7 @@ export const builtUserIntrestProfile = async(userId)=>{
             return{
                 text:`${video.title || ""} ${video.description || ""}`.trim(),
                 category: video.category || null,
-                tags : video.tags || [],
+                tags: video.tags || [],
                 weight: SIGNAL_WEIGHT.playlistAdd,
                 createdAt: video.createdAt
             }
@@ -1250,6 +1249,27 @@ export const builtUserIntrestProfile = async(userId)=>{
         ]
     )
 
+
+    // now we add the viewed video topic to video profile 
+    for(const video of viewedVideos){
+        const videoText =[
+            video.title,
+            video.description,
+            video.category,
+            ...(video.tags || [])
+        ].filter(Boolean).join(" ");
+
+        // viewed videos ke topic ko ab ham user ki prefrences me add karna hai 
+        addInterest(
+            videoProfile,
+            videoText,
+            SIGNAL_WEIGHT.partialWatch,
+            video.viewedAt
+        )
+    }
+
+    
+
     // now we get popular videos using their stored viewCount
     // const popularVideos = await Video.aggregate([
     //     {
@@ -1362,8 +1382,6 @@ export {
     CROSS_PLATFORM_WEIGHT,
     getKeywords,
     getTimeDelay,
-    addInterest,
-    calculateInterestScore,
-    builtUserIntrestProfile
+    addInterest
 };
 
