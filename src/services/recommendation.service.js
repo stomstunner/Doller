@@ -16,6 +16,8 @@ import { Like } from "../models/like.models.js";
 import { Repost } from "../models/repost.models.js";
 import { Tweet } from "../models/tweet.models.js";
 import { Share } from "../models/share.models.js";
+import { Playlist } from "../models/playlist.models.js";
+import { Subscription } from "../models/subscription.models.js";
 
 // now we have to define the each user activity 
 const SIGNAL_WEIGHT = {
@@ -757,51 +759,541 @@ export const builtUserIntrestProfile = async(userId)=>{
     ]
 
     // now we get the user search history
-    const searchHistory = await Search.aggregate(
+    const searchHistory = await GlobalSearch.aggregate(
         [
             // we want the searches that is done by the current user 
-            
+            {
+                $match:{
+                    user: new mongoose.Types.ObjectId(userId),
+                    isDeleted: false
+                }
+            },
+            {
+                // latest search first 
+                $sort:{
+                    createdAt: -1
+                }
+            },
+            // we take only top 50 searches 
+            {
+                $limit: 50
+            },
+            {
+                $project:{
+                    query:{
+                        $ifNull:["$normalisedQuery", "$query"]
+                    },
+                    searchType: 1,
+                    searchedAt: 1
+                }
+            }
         ]
     )
     
-
-    // now we take the video topics as a weaer remoendation for the tweet 
-    const videoBasedTweetInterests = videoInterests.map(
-        (interest)=> {
+    // now we convert the search history into video and tweet intrest 
+    const searchInterests = searchHistory.map(
+        (search)=>{
             return{
-                text: interest.text,
-                category : interest.category,
-                tags : interest.tags,
-                weight : interest.weight * CROSS_PLATFORM_WEIGHT
+                text: search.text || "",
+                searchType: search.searchType,
+                weight: SIGNAL_WEIGHT.search,
+                createdAt: search.searchedAt
             }
         }
     )
 
-    // now we use tweet topics as a signal for video recommendations
-    const tweetBasedVideoInterests = actualTweetInterests.map(
-        (interest) => {
-            return {
-                tweetId: interest.tweetId,
-                text: interest.text,
-                weight: interest.weight * CROSS_PLATFORM_WEIGHT,
-            };
+    // now we add the searchintrest into relevent profile 
+    for(const search of searchInterests){
+        if(search.searchType ==="video"){
+            addInterest(
+                videoProfile,
+                search.text,
+                search.weight,
+                search.createdAt
+            )
         }
-    );
+        else if(search.searchType === "tweet"){
+            addInterest(
+                tweetProfile,
+                search.text,
+                search.weight,
+                search.createdAt
+            )
+        }
+        else{
+            // general search can help bot tweet and video 
+            addInterest(
+                videoProfile,
+                search.text,
+                search.weight * CROSS_PLATFORM_WEIGHT,
+                search.createdAt
+            );
 
-    const combinedVideoIntrests = [
-        ...videoInterests,
-        ...tweetBasedVideoInterests
-    ]
-
-    const combinedTweetInterests = [
-        ...actualTweetInterests,
-        ...videoBasedTweetInterests
-    ];
-
-    return{
-        userId,
-        videoInterests : combinedVideoIntrests,
-        tweetInterests : combinedTweetInterests
+            addInterest(
+                tweetProfile,
+                search.text,
+                search.weight * CROSS_PLATFORM_WEIGHT,
+                search.createdAt
+            );
+        }
     }
+
+    // now we get the videos added to the user's playlist 
+   
+
+    // now we convert the playlist video into video intrest 
+    const playlistVideoInterests = playlistHistory.map(
+        (video)=>{
+            return{
+                text:`${video.title || ""} ${video.description || ""}`.trim(),
+                category: video.category || null,
+                tags : video.tags || [],
+                weight: SIGNAL_WEIGHT.playlistAdd,
+                createdAt: video.createdAt
+            }
+        }
+    )
+
+      // now we add playlist topics to the video interest profile
+    for (const video of playlistVideoInterests) {
+        const text = [
+            video.text,
+            video.category,
+            ...(video.tags || [])
+        ].filter(Boolean).join(" ");
+
+        addInterest(
+            videoProfile,
+            text,
+            video.weight,
+            video.createdAt
+        );
+    }
+
+    // now we add all direct video interests to the video profile
+    for (const interest of videoInterests) {
+        const text = [
+            interest.text,
+            interest.category,
+            ...(interest.tags || [])
+        ].filter(Boolean).join(" ");
+        // so the join help us to convert array to string by adding doubble quotes to the satarting and at the end of the text 
+
+        addInterest(
+            videoProfile,
+            text,
+            interest.weight,
+            interest.createdAt
+        );
+    }
+    // so the main logic behind the flow is that we take the title, description , tags and category kewyords and take all things in an same formate like text->category-> tags and weight then we just do the operation to make that all keywords to are stored in a array then we just make them string 
+
+    // now we add all direct tweet interests to the tweet profile
+    for (const interest of actualTweetInterests) {
+        addInterest(
+            tweetProfile,
+            interest.text,
+            interest.weight,
+            interest.createdAt
+        );
+    }
+
+    // now we save the original profiles before cross-platform scoring
+    const originalVideoProfile = new Map(videoProfile);
+    const originalTweetProfile = new Map(tweetProfile);
+
+    // now we use video topics as a weaker signal for tweet recommendations
+    for (const [keyword, weight] of originalVideoProfile) {
+        addInterest(
+            tweetProfile,
+            keyword,
+            weight * CROSS_PLATFORM_WEIGHT
+        );
+    }
+
+     // now we use tweet topics as a weaker signal for video recommendations
+    for (const [keyword, weight] of originalTweetProfile) {
+        addInterest(
+            videoProfile,
+            keyword,
+            weight * CROSS_PLATFORM_WEIGHT
+        );
+    }
+
+    // // now we make the aggregation for the subscription 
+    // const videoSubscriptions = await Subscription.aggregate(
+    //     [
+    //         {
+    //             $match:{
+    //                 subcriber: new mongoose.Types.ObjectId(userId),
+    //                 type: "video",
+    //                 isActive: true
+    //             }
+    //         },
+    //         {
+    //             // keep each creator only once 
+    //             $group:{
+    //                 _id: "$channel"
+    //             }
+    //         },
+    //         {
+    //             $project:{
+    //                 _id: 0,
+    //                 creatorId:"$_id"
+    //             }
+    //         }
+    //     ]
+    // )
+
+    // // now we get active tweet follows of the current user
+    // const tweetSubscriptions = await Subscription.aggregate([
+    //     {
+    //         $match: {
+    //             subscriber: new mongoose.Types.ObjectId(userId),
+    //             type: "tweet",
+    //             isActive: true
+    //         }
+    //     },
+    //     {
+    //         // keep each creator only once
+    //         $group: {
+    //             _id: "$channel"
+    //         }
+    //     },
+    //     {
+    //         $project: {
+    //             _id: 0,
+    //             creatorId: "$_id"
+    //         }
+    //     }
+    // ]);
+
+    // // convert the each creator id into string for better easy matching and feed rakning 
+    // const subscribedVideoCreatorId = videoSubscriptions.map(
+    //     (channel)=> channel.creatorId.toString()
+    // )
+    // const followedTweetCreatorId = tweetSubscriptions.map(
+    //     (tweet) => tweet.creatorId.toString()
+    // )
+
+
+    // now we get the creator user subcribed or follwed to 
+    const subscribedCreatorContent = await Subscription.aggregate(
+        [
+            {
+                $match: {
+                    subscriber: new mongoose.Types.ObjectId(userId),
+                    isActive: true
+                }
+            },
+            {
+                // pahle ham video ke subcription ka dekehnge 
+                $lookup:{
+                    // har subcription ke creator ka content fetch karo 
+                    from : "videos",
+                    let:{
+                        // yaha hame loopup ke ander pipeline me channel and types ka use karnege 
+                        creatorId: "$channel",
+                        subscriptionType: "$type"
+                    },
+                    // now we fetch video from the only video subscription
+                    pipeline:[
+                        {
+                            // $$ for variable, $ for field , video direct for model/table
+                            $match:{
+                                $exper:{
+                                    // both
+                                    $and:[
+                                        {
+                                            $eq: [
+                                                "$owner",
+                                                "$$creatorId"
+                                            ]
+                                        },
+                                        {
+                                            $eq:[
+                                                "$$subscriptionType",
+                                                "video"
+                                            ]
+                                        }
+                                    ]
+                                },
+                                isDeleted: false,
+                                isPublished: true
+                            }
+                        },
+                        {
+                            $project:{
+                                title: 1,
+                                description: 1,
+                                category:1,
+                                tags: 1,
+                                createdAt: 1
+                            }
+                        },
+                        {
+                            $limit: 100
+                        }
+                    ],
+                    as: "videos"
+                }
+            },
+
+            // now we fetch the folled creator ka tweet fetch kanrenge 
+            {
+                $loopup:{
+                    from:"tweets",
+                    let:{
+                        creatorId: "$channel",
+                        subscriptionType: "$type"
+                    },
+                    pipeline:[
+                        {
+                            $match:{
+                                $expr:{
+                                    $and:[
+                                        {
+                                            $eq:[
+                                                "$owner",
+                                                "$$creatorId"
+                                            ]
+                                        },
+                                        {
+                                            $eq:[
+                                                "$$subscriptionType",
+                                                "tweet"
+                                            ]
+                                        }
+                                    ]
+                                },
+                                isDeleted: false
+                            }
+                        },
+                        {
+                            $project:{
+                                content: 1,
+                                createdAt: 1
+                            }
+                        },
+                        {
+                            $limit: 100
+                        }
+                    ],
+                    as:"tweets"
+                }
+            },
+            {
+                // now we project only the creator ka type and and subcription type
+                type:1,
+                videos: 1,
+                tweets:1
+            }
+        ]
+    )
+
+    // now we add subscribed creator's content to intrest profile
+    // video creator ke topic ko video presfrence me add aknrenge 
+    for(const creator of subscribedCreatorContent){
+        if(creator.type === "video"){
+            for(const video of creator.video){
+                const videoText =[
+                    video.title,
+                    video.description,
+                    video.category,
+                    ...(video.tags || []),
+                ].filter(Boolean).join(" ");
+
+                addInterest(
+                    videoProfile,
+                    videoText,
+                    SIGNAL_WEIGHT.subscription,
+                    video.createdAt
+                )
+            }
+        }
+
+        // Tweet creator ke topics ko tweet preference mein add karenge
+        if (creator.type === "tweet") {
+            for (const tweet of creator.tweets) {
+                addInterest(
+                    tweetProfile,
+                    tweet.content || "",
+                    SIGNAL_WEIGHT.follower,
+                    tweet.createdAt
+                );
+            }
+        }
+    }
+
+    // now we get the videos viewes by the user 
+    const viewedVideos = await View.aggregate(
+        [
+            {
+                $match:{
+                    // we take the cuurent user view models 
+                    // current user ki video views fetch karenge 
+                    user: new mongoose.Types.ObjectId(userId),
+                    video:{
+                        $exists: true,
+                        $ne: null,
+                        // not equals to null hona chaiye videos 
+                    }
+                }
+            },
+            {
+                // view collection ke corresponding video details fetch karenge 
+                $lookup:{
+                    from:"videos",
+                    localField: "video",
+                    foreignField: "_id",
+                    as: "video",
+                    pipeline:[
+                        {
+                            $match:{
+                                // deleted ya unpublised videos ko fetch nahi karenge 
+                                isDeleted: false,
+                                isPublished: true
+                            }
+                        },
+                        {
+                            $project:{
+                                title: 1,
+                                category: 1,
+                                description: 1,
+                                tags: 1,
+                                createdAt: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $unwind: "$video"
+            },
+            {
+                // keep only required field from videos only but we are at view =(top level aggregation)
+                $project:{
+                    viewedAt: 1,
+
+                }
+            }
+        ]
+    )
+
+    // now we get popular videos using their stored viewCount
+    // const popularVideos = await Video.aggregate([
+    //     {
+    //         // only active and published videos
+    //         $match: {
+    //             isDeleted: false,
+    //             isPublished: true
+    //         }
+    //     },
+    //     {
+    //         // select the fields required for popularity ranking
+    //         $project: {
+    //             _id: 0,
+    //             videoId: "$_id",
+    //             viewCount: { $ifNull: ["$viewCount", 0] },
+    //             createdAt: 1
+    //         }
+    //     },
+    //     {
+    //         // most viewed videos first
+    //         $sort: {
+    //             viewCount: -1
+    //         }
+    //     },
+    //     {
+    //         // take top 100 popular videos
+    //         $limit: 100
+    //     }
+    // ]);
+
+    // // now we get popular tweets using their stored viewCount
+    // const popularTweets = await Tweet.aggregate([
+    //     {
+    //         // only active tweets
+    //         $match: {
+    //             isDeleted: false
+    //         }
+    //     },
+    //     {
+    //         // select the fields required for popularity ranking
+    //         $project: {
+    //             _id: 0,
+    //             tweetId: "$_id",
+    //             viewCount: { $ifNull: ["$viewCount", 0] },
+    //             createdAt: 1
+    //         }
+    //     },
+    //     {
+    //         // most viewed tweets first
+    //         $sort: {
+    //             viewCount: -1
+    //         }
+    //     },
+    //     {
+    //         // take top 100 popular tweets
+    //         $limit: 100
+    //     }
+    // ]);
+
+    // now we return the user's interest profiles
+    return {
+        userId,
+        videoInterests: videoProfile,
+        tweetInterests: tweetProfile
+    };
+
+    // // now we take the video topics as a weaer remoendation for the tweet 
+    // const videoBasedTweetInterests = videoInterests.map(
+    //     (interest)=> {
+    //         return{
+    //             text: interest.text,
+    //             category : interest.category,
+    //             tags : interest.tags,
+    //             weight : interest.weight * CROSS_PLATFORM_WEIGHT
+    //         }
+    //     }
+    // )
+
+    // // now we use tweet topics as a signal for video recommendations
+    // const tweetBasedVideoInterests = actualTweetInterests.map(
+    //     (interest) => {
+    //         return {
+    //             tweetId: interest.tweetId,
+    //             text: interest.text,
+    //             weight: interest.weight * CROSS_PLATFORM_WEIGHT,
+    //         };
+    //     }
+    // );
+
+    // const combinedVideoIntrests = [
+    //     ...videoInterests,
+    //     ...tweetBasedVideoInterests
+    // ]
+
+    // const combinedTweetInterests = [
+    //     ...actualTweetInterests,
+    //     ...videoBasedTweetInterests
+    // ];
+
+    // return{
+    //     userId,
+    //     videoInterests : combinedVideoIntrests,
+    //     tweetInterests : combinedTweetInterests
+    // }
 }
+
+// export all functions at the end
+export {
+    SIGNAL_WEIGHT,
+    CROSS_PLATFORM_WEIGHT,
+    getKeywords,
+    getTimeDelay,
+    addInterest,
+    calculateInterestScore,
+    builtUserIntrestProfile
+};
 
