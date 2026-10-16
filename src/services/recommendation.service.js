@@ -898,34 +898,7 @@ export const builtUserIntrestProfile = async(userId)=>{
         ]
     )
 
-    // now we convert the playlist video into video intrest 
-    const playlistVideoInterests = playlistHistory.map(
-        (video)=>{
-            return{
-                text:`${video.title || ""} ${video.description || ""}`.trim(),
-                category: video.category || null,
-                tags : video.tags || [],
-                weight: SIGNAL_WEIGHT.playlistAdd,
-                createdAt: video.createdAt
-            }
-        }
-    )
-
-      // now we add playlist topics to the video interest profile
-    for (const video of playlistVideoInterests) {
-        const text = [
-            video.text,
-            video.category,
-            ...(video.tags || [])
-        ].filter(Boolean).join(" ");
-
-        addInterest(
-            videoProfile,
-            text,
-            video.weight,
-            video.createdAt
-        );
-    }
+    
 
     // now we add all direct video interests to the video profile
     for (const interest of videoInterests) {
