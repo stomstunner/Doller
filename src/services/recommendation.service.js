@@ -839,7 +839,64 @@ export const builtUserIntrestProfile = async(userId)=>{
     }
 
     // now we get the videos added to the user's playlist 
-   
+    const playlistHistory = await Playlist.aggregate(
+        [
+            // we want only current users active playlist 
+            {
+                $match:{
+                    owner: new mongoose.Types.ObjectId(userId),
+                    isDeleted: false
+                }
+            },
+            {
+                // now we see into the videos
+                $lookup:{
+                    from:"videos",
+                    localField: "videos",
+                    foreignField:"_id",
+                    as: "videos",
+                    pipeline:[
+                        {
+                            $match:{
+                                isDeleted: false,
+                                isPublished: true
+                            }
+                        },
+                        {
+                            $project:{
+                                title: 1,
+                                description: 1,
+                                category: 1,
+                                tags: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                // convert the each videos of the playlist into seperat record 
+                $unwind: "$videos"
+            },
+            {
+                $project:{
+                    // now we select the filelds for the video intrest 
+                    title:"$videos.title",
+                    description:"$videos.description",
+                    category: "$videos.category",
+                    tags: "$videos.tags",
+                    createdAt: "$updatedAt"
+                }
+            },
+            {
+                $sort: {
+                    createdAt: -1
+                }
+            },
+            {
+                $limit: 100
+            }
+        ]
+    )
 
     // now we convert the playlist video into video intrest 
     const playlistVideoInterests = playlistHistory.map(
@@ -1174,7 +1231,7 @@ export const builtUserIntrestProfile = async(userId)=>{
                 // keep only required field from videos only but we are at view =(top level aggregation)
                 $project:{
                     viewedAt: 1,
-
+                    
                 }
             }
         ]
