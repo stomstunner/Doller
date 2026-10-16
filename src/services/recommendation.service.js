@@ -1231,8 +1231,21 @@ export const builtUserIntrestProfile = async(userId)=>{
                 // keep only required field from videos only but we are at view =(top level aggregation)
                 $project:{
                     viewedAt: 1,
+                    title:"$video.title",
+                    description:"$video.description",
+                    category:"$video.category",
+                    tags: "$video.tags",
+                    createdAt:"$video.createdAt"
                     
                 }
+            },
+            {
+                $sort: {
+                    viewedAt: -1
+                }
+            },
+            {
+                $limit: 100
             }
         ]
     )
