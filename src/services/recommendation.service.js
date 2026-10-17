@@ -1519,7 +1519,9 @@ export const builtUserIntrestProfile = async(userId)=>{
     return {
         userId,
         videoInterests: videoProfile,
-        tweetInterests: tweetProfile
+        tweetInterests: tweetProfile,
+        popularVideos: rankedPopularVideos,
+        popularTweets: rankedPopularTweets,
     };
 
     // // now we take the video topics as a weaer remoendation for the tweet 
