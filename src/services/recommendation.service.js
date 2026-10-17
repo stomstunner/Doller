@@ -1268,6 +1268,109 @@ export const builtUserIntrestProfile = async(userId)=>{
         )
     }
 
+    // now we add the viewed tweet to the tweet profile for user 
+    const viewedTweet = await View.aggregate(
+        [
+            {
+                $match:{
+                    user: new mongoose.Types.ObjectId(userId),
+                    tweet:{
+                        $exists: true,
+                        $ne: null
+                    }
+                }
+            },
+            // now we look into the tweet model
+            {
+                $lookup:{
+                    from: "tweets",
+                    localField:"tweet",
+                    foreignField:"_id",
+                    as:"tweet",
+                    pipeline:[
+                        {
+                            $match:{
+                                isDeleted: false
+                            },
+
+                        },
+                        {
+                            $project:{
+                                content: 1,
+                                createdAt: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $unwind: "$tweet"
+            },
+            {
+                $project:{
+                    viewedAt: 1,
+                    content:"$tweet.content",
+                    createdAt: "$tweet.createdAt"
+                }
+            },
+            {
+                $sort:{
+                    viewedAt: -1
+                }
+            },
+            {
+                $limit: 100
+            }
+        ]
+    )
+
+    // now we add the viewed tweet topic to tweet profile
+    for(const tweet of viewedTweet){
+        addInterest(
+            tweetProfile,
+            tweet.content || "",
+            SIGNAL_WEIGHT.partialWatch,
+            tweet.viewedAt
+        )
+    }
+
+    // now we get the popular videos from the view count 
+    const popularVideos = await Video.aggregate(
+        [
+            {
+                $match:{
+                    isDeleted: false,
+                    isPublished: true
+                }
+            },
+            {
+                $project:{
+                    title:1,
+                    description: 1,
+                    category: 1,
+                    tags: 1,
+                    // iska matalb hua ki viewcount field me ager null hua toh ham woha 0 ka use karnege error se bach sakte hai  
+                    viewCount: {
+                        $ifNull:[
+                            "$viewCount",
+                            0
+                        ]
+                    },
+                    createdAt: 1
+                }
+            },
+            {
+                $sort:{
+                    viewCount:-1
+                }
+            },
+            {
+                $limit: 100
+            }
+        ]
+    )
+
+    // now we get the popular tweet by its views 
     
 
     // now we get popular videos using their stored viewCount
