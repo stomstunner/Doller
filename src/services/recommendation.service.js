@@ -119,6 +119,28 @@ const SIGNAL_WEIGHT = {
     }
 
 
+    // Popular videos ko recent hone ka bonus milega.
+    // 60 days ka half-life: 60 din baad time-based score lagbhag aadha.
+    const POPULAR_VIDEO_HALF_LIFE_DAYS = 60;
+
+    const calculatePopularityScore = (viewCount = 0, createdAt) => {
+    const now = Date.now();
+    const createdTime = new Date(createdAt).getTime();
+
+    // Agar createdAt missing ya invalid ho, toh safe fallback.
+    const ageInDays = Number.isFinite(createdTime)
+        ? Math.max(0, (now - createdTime) / (1000 * 60 * 60 * 24))
+        : 0;
+
+    // Purane videos ka score dheere-dheere kam hoga.
+    const timeDecay = Math.pow(
+        0.5,
+        ageInDays / POPULAR_VIDEO_HALF_LIFE_DAYS
+    );
+
+    return Math.max(0, viewCount) * timeDecay;
+    };
+
     // now we add weightage keyword to the user intrest profile 
 
     // Add weighted keywords to a user's interest profile.
@@ -1370,8 +1392,39 @@ export const builtUserIntrestProfile = async(userId)=>{
         ]
     )
 
+    // so i want ki har videos ke according ham uss video kitna puranna hai uske according uska intrest define karna 
+
     // now we get the popular tweet by its views 
-    
+    const popularTweets = await Tweet.aggregate(
+        [
+            {
+                $match:{
+                    isDeleted: false
+                }
+            },
+            {
+                $project:{
+                    content: 1,
+                    viewCount:{
+                        $ifNull:[
+                            // ager viewCount wala field null hua toh usko 0 pe fall back karwa dena 
+                            "$viewCount",
+                            0
+                        ]
+                    },
+                    createdAt: 1
+                }
+            },
+            {
+                $sort: {
+                    viewCount: -1
+                }
+            },
+            {
+                $Limit: 100
+            }
+        ]
+    )
 
     // now we get popular videos using their stored viewCount
     // const popularVideos = await Video.aggregate([
