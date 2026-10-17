@@ -1387,12 +1387,26 @@ export const builtUserIntrestProfile = async(userId)=>{
                 }
             },
             {
-                $limit: 100
+                $limit: 300
             }
         ]
     )
 
     // so i want ki har videos ke according ham uss video kitna puranna hai uske according uska intrest define karna 
+    const rankedPopularVideos = popularVideos.map(
+        (video)=>({
+            ...video,
+            popularityScore: calculatePopularityScore(
+                video.viewCount,
+                video.createdAt
+            )
+        })
+    )
+
+    // Ab raw viewCount nahi, adjusted score ke basis par rank karna.
+    rankedPopularVideos.sort(
+    (a, b) => b.popularityScore - a.popularityScore
+    );
 
     // now we get the popular tweet by its views 
     const popularTweets = await Tweet.aggregate(
@@ -1421,10 +1435,26 @@ export const builtUserIntrestProfile = async(userId)=>{
                 }
             },
             {
-                $Limit: 100
+                $limit: 300
             }
         ]
     )
+
+    // Views ko tweet ki age ke hisaab se adjust karna.
+    const rankedPopularTweets = popularTweets.map(function (tweet) {
+        return {
+            ...tweet,
+            popularityScore: calculatePopularityScore(
+                tweet.viewCount,
+                tweet.createdAt
+            ),
+        };
+    });
+
+    // Ab adjusted popularity ke basis par tweets rank honge.
+    rankedPopularTweets.sort(
+    (a, b) => b.popularityScore - a.popularityScore
+    );
 
     // now we get popular videos using their stored viewCount
     // const popularVideos = await Video.aggregate([
