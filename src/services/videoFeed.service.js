@@ -4,16 +4,40 @@ import { validateObjectId } from "../utils/validateObjectId.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
 import { Video } from "../models/video.models.js";
+import { FeedImpression } from "../models/feedImpression.models.js";
 import { builtUserIntrestProfile, calculateInterestScore } from "./recommendation.service.js";
 
 // so here we write ki ham kitna personlized video ko apne feed me laa sakte hai aur baaki jo hoga woh popular video se aayega 
 const PERSONALIZED_RATIO = 0.8;
 
 // ek request me kitni video ko load karni hai 
-const MAX_FEED_LIMIT = 20;
+const MAX_FEED_LIMIT = 50;
 
 // now we we set ki maximum kitni video lani hai hame video user intrest ko 
+// this is for personlized ranking = best 500 video not all videos from the database 
 const VIDEO_CANDIDATE_LIMIT = 500;
+
+// popular videos ke liye sirf pichli 3 months ke video elizible honge 
+const POPULAR_VIDEO_MONTHS = 3;
+
+// pichli 7 din me dikhaya gaya videos ko ham recently shown mana jayega 
+const RECENT_IMPRESSION_DAYS = 7;
+
+// EK HI    video 7 din me 3 baar dikh chuki hai toh usse ham surpass karnegen dislike nahi kanrene
+const MAX_RECENT_IMPRESSION = 3;
+
+
+// now we will make a fucntion that help us to find the previous past 3 month not the 90 days 
+function getPopularCutoffDate(){
+    // abhi ka date 
+    const cutoffDate = new Date();
+
+    // now we will set the month in the cutoff date and we will get the month ki hamne kitna set karna hai moth from the popular video month 
+    cutoffDate.setMonth(cutoffDate.getMonth(POPULAR_VIDEO_MONTHS))
+
+    return cutoffDate;
+    
+}
 
 // now we make the helper function jisse hame non dubpicatedVideos hi milega
 function removeDuplicateVideos(videos){
