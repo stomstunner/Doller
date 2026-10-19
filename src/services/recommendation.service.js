@@ -1356,13 +1356,20 @@ export const builtUserIntrestProfile = async(userId)=>{
         )
     }
 
+    // STEP: Popular videos ke liye last 3 months ki date nikalo
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
     // now we get the popular videos from the view count 
     const popularVideos = await Video.aggregate(
         [
             {
                 $match:{
                     isDeleted: false,
-                    isPublished: true
+                    isPublished: true,
+                    createdAt:{
+                        $gte: threeMonthsAgo
+                    }
                 }
             },
             {
