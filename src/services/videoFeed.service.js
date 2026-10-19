@@ -33,11 +33,66 @@ function getPopularCutoffDate(){
     const cutoffDate = new Date();
 
     // now we will set the month in the cutoff date and we will get the month ki hamne kitna set karna hai moth from the popular video month 
-    cutoffDate.setMonth(cutoffDate.getMonth(POPULAR_VIDEO_MONTHS))
+    cutoffDate.setMonth(cutoffDate.getMonth() - POPULAR_VIDEO_MONTHS)
 
     return cutoffDate;
-    
+
 }
+
+// now we find the 7 din pahle ka cutoff from now 
+function getRecentImpressionCutoffDate(){
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - RECENT_IMPRESSION_DAYS);
+    return cutoffDate;
+}
+
+// now we make a function for filtering the recently shown videos 
+function filterRecentlyShownVideos(videos, impressionMap){
+
+    // videos me hamre pass wohi video store hoga jo true return akrege kyuki ham unhiko dikhayenge jo false return karege kyuki woh baar baar feed me aa gaya hai toh usse ham nahi dikahyenge 
+    
+    return videos.filter(
+        // take 1 video at a time 
+        (video) => {
+            // ab uss curretn video ki impression summery find karte hai.
+            // impression me hamre pass har video ka information hai 
+            const impression = impressionMap.get(String(video._id));
+            // current video ka video id ko ham string me convert kar ke impression me daal lenge 
+
+            // ager hamare pass impression nahi hai toh hamne woh video pahle show nahi hui hai matlab nahi video hai 
+            if(!impression){
+                return true;
+            }
+
+            // last time video kab dikhayi gai thi 
+            const lastShownAt = new Date(impression.lastShownAt);
+
+            // we want ki ham sirf recent window impression ko consider karnege 
+            // jo ki yaha pe 7 din hai 
+            // ager 7 din ke ander 3 baar dikha diya gaya hai toh ham usse nahi dikhayenge but maan ke 8..9 din pahle woh video dikahya gaya hai tab ham usse dikha sakte hai 
+
+            const isRecentlyShown = lastShownAt > getRecentImpressionCutoffDate();
+
+            // ager isRecentlyShown me false value hai ham tab ham usse dikha sakte hai nahi toh hata denge 
+            // purani video eligible hai 
+            if(!isRecentlyShown){
+                return true;
+            }
+
+            // now we want ki ham recently shown video ko surpass kar karne koi naya video aaye 
+            // check ki hamare showing window me kya thresshold cross toh nahi ho gaya hai 
+            const hasRepeatedExposure = impression.impressionCount >= MAX_RECENT_IMPRESSION;
+
+            // surpass that video 
+            if(hasRepeatedExposure){
+                return false
+            }
+
+            return true;
+        }
+    )
+}
+
 
 // now we make the helper function jisse hame non dubpicatedVideos hi milega
 function removeDuplicateVideos(videos){
@@ -45,16 +100,16 @@ function removeDuplicateVideos(videos){
     const seenIds = new Set();
 
     // now we return the videos that is non dubplicated 
-    return Video.filter((video)=>{
+    return videos.filter((video)=>{
         // now we change the video object id from the mongodb object id to string 
-        const id = String(video._id);
+        const videoId = String(video._id);
 
 
         // ager hamen id pahle hi hai seenId me toh return kar do kuch mat karo 
-        if(seenIds.has(id)) return false;
+        if(seenIds.has(videoId)) return false;
 
         // ager hame id pahli baar mili hai toh usse seenIds set me add kar lo 
-        seenIds.add(id);
+        seenIds.add(videoId);
 
         // video unique hai isliye sse ham list me store kar ke rakhenge 
         return true;
