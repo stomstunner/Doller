@@ -19,11 +19,17 @@ const feedImpressionSchema = new Schema({
         enum:["user","video","tweet"],
         required: true
     },
+    // for mongoose populate we have the same name
+    contentModel:{
+        type:String,
+        enum:["Video", "Tweet", "User"],
+        required: true
+    },
     // now we write ki user ko kon se contentType ka chiz dikhaye a gaya
     // video ager contetn type dikhaya gaya toh uska object id store ho and same for other 2 
     contentId:{
         type:Schema.Types.ObjectId,
-        refPath:"contentType",
+        refPath:"contentModel",
         required: true
     },
     // now we store ki hme content first time kab dikhaya gaya 
