@@ -127,6 +127,8 @@ function removeDuplicateVideos(videos) {
 // STEP 4: IMPRESSION FILTERING
 // ============================================================
 
+![alt text](image-13.png)
+
 function filterRecentlyShownVideos(videos, impressionMap) {
 
     return videos.filter((video) => {
