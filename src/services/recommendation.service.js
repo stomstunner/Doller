@@ -99,47 +99,47 @@ const SIGNAL_WEIGHT = {
 
     // now we make a system ki haamra activlites ke base pe weight de ager hamra activity recent ka hai toh uska weight pura hoga but woh ager purane activivties se compare hoga toh uska weight ghat jayega 
     // half time is 7 days
-    const getTimeDelay = (date)=>{
-        if(!date){
-            return 1;
-        }
-
-        const timestamp = new Date(date).getTime();
-
-        // Invalid dates should not create NaN scores.
-        if (Number.isNaN(timestamp)) {
-            return 1;
-        }
-        const ageInDays = Math.max(
-            0,
-            (Date.now() - timestamp)/( 1000 * 60 * 60 * 24)
-        );
-        // Exponential decay: recent activities matter more.
-        return Math.pow(0.5, ageInDays / 7);
+const getTimeDelay = (date)=>{
+    if(!date){
+        return 1;
     }
+
+    const timestamp = new Date(date).getTime();
+
+    // Invalid dates should not create NaN scores.
+    if (Number.isNaN(timestamp)) {
+        return 1;
+    }
+    const ageInDays = Math.max(
+        0,
+        (Date.now() - timestamp)/( 1000 * 60 * 60 * 24)
+    );
+    // Exponential decay: recent activities matter more.
+    return Math.pow(0.5, ageInDays / 7);
+}
 
 
     // Popular videos ko recent hone ka bonus milega.
     // 60 days ka half-life: 60 din baad time-based score lagbhag aadha.
-    const POPULAR_VIDEO_HALF_LIFE_DAYS = 60;
+const POPULAR_VIDEO_HALF_LIFE_DAYS = 60;
 
-    const calculatePopularityScore = (viewCount = 0, createdAt) => {
-    const now = Date.now();
-    const createdTime = new Date(createdAt).getTime();
+const calculatePopularityScore = (viewCount = 0, createdAt) => {
+const now = Date.now();
+const createdTime = new Date(createdAt).getTime();
 
-    // Agar createdAt missing ya invalid ho, toh safe fallback.
-    const ageInDays = Number.isFinite(createdTime)
-        ? Math.max(0, (now - createdTime) / (1000 * 60 * 60 * 24))
-        : 0;
+// Agar createdAt missing ya invalid ho, toh safe fallback.
+const ageInDays = Number.isFinite(createdTime)
+    ? Math.max(0, (now - createdTime) / (1000 * 60 * 60 * 24))
+    : 0;
 
-    // Purane videos ka score dheere-dheere kam hoga.
-    const timeDecay = Math.pow(
-        0.5,
-        ageInDays / POPULAR_VIDEO_HALF_LIFE_DAYS
-    );
+// Purane videos ka score dheere-dheere kam hoga.
+const timeDecay = Math.pow(
+    0.5,
+    ageInDays / POPULAR_VIDEO_HALF_LIFE_DAYS
+);
 
-    return Math.max(0, viewCount) * timeDecay;
-    };
+return Math.max(0, viewCount) * timeDecay;
+};
 
     // now we add weightage keyword to the user intrest profile 
 
@@ -147,40 +147,40 @@ const SIGNAL_WEIGHT = {
     // The Map stores each keyword and its accumulated interest score.
     // har word ka intrest score store karenge / nikalnge
 
-    const addInterest = (profile, text, weight, date)=>{
+const addInterest = (profile, text, weight, date)=>{
 
-        const finalWeight = weight * getTimeDelay(date);
-        // iska matlab hua  ki ham apna weight of intrest ko depend karenge relevency pe ki kitna purana activlity hai 
+    const finalWeight = weight * getTimeDelay(date);
+    // iska matlab hua  ki ham apna weight of intrest ko depend karenge relevency pe ki kitna purana activlity hai 
 
-        const keywords = getKeywords(text);
-        // extract the usefull keyword from the content 
+    const keywords = getKeywords(text);
+    // extract the usefull keyword from the content 
 
 
-        // Add the new activity weight to the existing keyword score.
-        // like hamne koi video dekha usse koi activity generate hui toh ham usse previous keyword ka score badha denge 
-        for(const keyword of keywords){
+    // Add the new activity weight to the existing keyword score.
+    // like hamne koi video dekha usse koi activity generate hui toh ham usse previous keyword ka score badha denge 
+    for(const keyword of keywords){
 
-            profile.set(
-                keyword ,
-                (profile.get(keyword) || 0) + finalWeight
-            )
-        }
+        profile.set(
+            keyword ,
+            (profile.get(keyword) || 0) + finalWeight
+        )
     }
+}
 
-    // now we calculate how closly content matcheses the user intrest 
+// now we calculate how closly content matcheses the user intrest 
 
-    // text: jis video ya tweet ko recommend karne ka soch rahe hain.
-    // interestProfile: Map jisme user ke har keyword ka interest score hai. Jaise cricket → 8, gaming → 3.
-    export const calculateInterestScore = (text, interestProfile)=>{
-        const keywords = getKeywords(text);
+// text: jis video ya tweet ko recommend karne ka soch rahe hain.
+// interestProfile: Map jisme user ke har keyword ka interest score hai. Jaise cricket → 8, gaming → 3.
+export const calculateInterestScore = (text, interestProfile)=>{
+    const keywords = getKeywords(text);
 
-        let score = 0;
-        for(const keyword of keywords){
-            // Keyword profile mein milta hai toh uska score add hota hai. Nahi milta toh 0 add hota hai.
-            score += interestProfile.get(keyword) || 0;
-        }
-        return score;
+    let score = 0;
+    for(const keyword of keywords){
+        // Keyword profile mein milta hai toh uska score add hota hai. Nahi milta toh 0 add hota hai.
+        score += interestProfile.get(keyword) || 0;
     }
+    return score;
+}
 
 // now we built the interest profile of the user 
 export const builtUserIntrestProfile = async(userId)=>{
