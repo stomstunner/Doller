@@ -255,5 +255,92 @@ export const getVideoHomeFeed = asyncHandler(async(req, res)=>{
         )
     }
     
+    // now we want that ki ham videos ko database se laye but we want only the aviable VIDEOS
+    const candidateVideos = await Video.aggregate(
+        [
+            {
+                $match:{
+                    isDeleted: false,
+                    isPublished: true
+                }
+            },
+            {
+                $sort:{
+                    createdAt : -1
+                }
+            },
+            {
+                $limit: VIDEO_CANDIDATE_LIMIT
+            },
+            {
+                $project:{
+                    title: 1,
+                    description: 1,
+                    category: 1,
+                    tags: 1,
+                    thumbnail: 1,
+                    createdAt: 1,
+                    owner: 1,
+                    viewCount: 1
+                }
+            }
+        ]
+    );
+
+    /**
+     * Result	JavaScript kya karega?
+        Negative number	-> videoA ko videoB se pehle rakhega
+        Positive number	-> videoB ko videoA se pehle rakhega
+        0 -> Dono equal rank par hain; unka relative order preserve hota hai
+     */
+
+    // now we have the videos in the candidate videos from the databse now we have to calculate the score of each video and rank them 
+    const scoredVideos = candidateVideos.map(
+        (video) => {
+            // ab hamare pass ek video hai abhi candiate video se 
+            // ab uss 1 video per ye operation perform karnge 
+
+            const videoText = [
+                video.title,
+                video.description,
+                video.category,
+                ...(video.title || [])
+            ].filter(Boolean).join(" ");
+
+            // video. title = video per ham kaam kar rhae hai map ke ander jo ki ek single video ko bata raha hai hamrare canditate video naam ke array  me  se 
+
+            // now we reuse the exixting function from the recommmendation sevice 
+            const interestScore = calculateInterestScore(
+                videoText,
+                videoInterests
+            )
+
+            // original video ke saath score ko attatch kar denge => video jo hame candiate video se aa raha hai
+
+            return{
+                ...video,
+                interestScore
+            }
+        }
+    );
+
+    // now we rank the videos like higer score ko priority denga and ager same score hui toh ham date ke basis pe rank karnge 
+    
+    scoredVideos.sort((videoA , videoB) => {
+        if(videoA.interestScore !== videoB.interestScore){
+            return videoB.interestScore - videoA.interestScore;
+
+            /**
+         * Result	JavaScript kya karega?
+            Negative number	-> videoA ko videoB se pehle rakhega
+            Positive number	-> videoB ko videoA se pehle rakhega
+            0 -> Dono equal rank par hain; unka relative order preserve hota hai
+            */
+        }
+
+        return(
+            new Date(videoB.createdAt) - new Date(videoA.createdAt)
+        );
+    })
 
 })
