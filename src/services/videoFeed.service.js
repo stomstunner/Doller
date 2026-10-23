@@ -229,7 +229,7 @@ export const getVideoHomeFeed = asyncHandler(async(req, res)=>{
     const videoInterests = userProfile.videoInterests;
 
     // recommendation servide ke popular video ko reuse karnge 
-    const popularCandidates = userProfile.popularVideos || [];
+    const profilePopularVideos = userProfile.popularVideos || [];
 
     // abhi ham latest publieshed video me se candiate video laa rhahe hai
     // but we want ki hamare popular videos bass pichli 3 manine ka hi videos ho na ki all time ka popular videos 
@@ -342,5 +342,34 @@ export const getVideoHomeFeed = asyncHandler(async(req, res)=>{
             new Date(videoB.createdAt) - new Date(videoA.createdAt)
         );
     })
+
+    // now we want ki intrest score of the scoredVideos should be greater than 0
+    const personalizedCandidates = scoredVideos.filter(
+        (video)=> video.interestScore > 0
+    );
+
+    // now we want ki ham sare popular video ke jo user ke related me relevent hai unko 3 mahine ke ander ke window ma rakhna usse piche ke popular vidio ko mat lana 
+
+    const popularCutoffDate = getPopularCutoffDate();
+    // isme hamre pass popular cutoffdate ka kitna value hai woh aa jaega 
+
+    // now we store the recentPopularCandidates 
+    const recentPopularCandidates = profilePopularVideos.filter(
+        (video) =>{
+            // jiska date hi nahi hai createion ka unhe video me rakhn hi nahi hai i mean recentPopularCandidates me nahi store karna hai video ko 
+
+            if(!video.createdAt) return false;
+
+            // elegibale videos are  those who had publised agter cutoff date 
+
+            return(
+                new Date(video.createdAt) >= popularCutoffDate
+                // new date isliye lagaya kyuki popularcutoff me date store hai so ham video.created at ko pahle date me convert kar diye uske baad compare kiye return karega ye ek true ya flase value ager flase hua toh woh video hamare recentPopularCandidates me video store nahi rahega ager true aa gaya toh hamare uss array me store ho  jayega 
+            )
+        }
+    );
+
+    
+
 
 })
