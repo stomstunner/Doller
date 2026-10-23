@@ -391,5 +391,123 @@ export const getVideoHomeFeed = asyncHandler(async(req, res)=>{
     )
     // hame apne nonDuplicatePopularVideos me sabse pahle uniquePopularVideos lena hai usme ham filter laga denge jisse hamare pass bass wohi video aayege jo true hold karta hoga ya null nahi hoga filter lagane ke baas ham har ek video ko lenge popular video ko then ham woh videos ko NAHI lenge jiska id hamare personlizedIds me id store hai ahu ha personlizedIds me ham has ka use karnege video ki id find karne ke liye but ham abhi jo video liye hai woh popular video ko video hai toh iske liye ham usse sambse pahle uske id ko string me convert karenge 
 
-    
+
+    // now we have to filter the repeated video from the popular and personlized source nahi toh woh baar baar aa jayega 
+
+    const filteredPersonalizedVideos = filterRecentlyShownVideos(
+        uniquePersonalizedVideos,
+        impressionMap
+        // impression map me hamre pass kon kon si video user ko show hui aur kab hui aur kitni baar show hui woh store rakhta hai 
+    )
+
+    const filteredPopularVideos = filterRecentlyShownVideos(
+        uniquePopularVideos,
+        impressionMap
+    )
+
+    // now we make the latest popular videos fallback list 
+    // ager hamara personlized list khatam ho jaye toh ham kah se video linge apna data fill karna ke liye = video response me video kaha se dalenge =  popular video se 
+
+    const usedVideoIds = new Set(
+        [
+            ...filteredPersonalizedVideos.map(
+                (video) => String(video._id)
+            ),
+
+            ...filteredPopularVideos.map(
+                (video)=> String(video._id)
+            )
+        ]
+    )
+    // Iska fayda: Jab hum fallback videos choose karenge, toh check kar sakte hain ki video pehle se use toh nahi hui:
+
+    // now we store the videos from the popular list jo ki hamra na toh phale ke popuar me tha ko ki abhi page me jaa rha hai aur na hi hamre personlised list me hai 
+    const fallbackCandidates = candidateVideos.filter(
+        (video)=>{
+            const videoId = String(video._Id);
+
+            // jo video pahle hi source me hai unhe dubar nahi lena hai 
+            if(usedVideoIds.has(videoId)) return false;
+
+            // Intuition: Agar function ke result mein video bachi 
+            // (length > 0), toh true return hoga 
+            // aur fallback mein aa sakti hai. Agar video filter hokar nikal gayi, toh false return hoga.
+
+            return filterRecentlyShownVideos(
+                [video],
+                impressionMap
+            ).length > 0;
+            // ager video baar baar nahi dikhayi gai toh keep  karo 
+
+
+        }
+    );
+
+    // fallbackCandidates ko set se unique rakhnge 
+    const uniqueFallbackVideos = removeDuplicateVideos(fallbackCandidates);
+
+    // now we mix the peronlized and the popular video 
+    // exixsting ration ke according mix karnge videos ko 
+    const mixedVideos = builtMixedFeed(
+        filteredPersonalizedVideos,
+        filteredPopularVideos,
+        limit,
+        PERSONALIZED_RATIO
+    )
+
+    // ager feed choti hai toh ham fallbace video se fill karnge 
+    // current video feed me jitni id hai usse save karo 
+    const finalVideoIds = new Set(
+        mixedVideos.map(
+            (video)=> String(video._id)
+        )
+    )
+
+    // fallback videos ko tabhi add akrenge jab woh pahle se hi feed me na ho 
+    for(const video of uniqueFallbackVideos){
+        if(mixedVideos.length>= VIDEO_CANDIDATE_LIMIT) break;
+
+        const videoId = String(video._id);
+
+        if(finalVideoIds.has(videoId)) continue;
+        // mtlab usko chor do aage badho 
+
+        mixedVideos.push(video);
+        finalVideoIds(videoId);
+    }
+
+
+    // Page 1 ka skip 0, page 2 ka skip limit, aur aage isi pattern se hoga.
+    const skip = (page - 1) * limit;
+
+    const videos = mixedVideos.slice(
+        skip,
+        skip + limit
+    );
+
+    // Total sirf generated candidate feed ki count hai,
+    // poori database ki total video count nahi.
+    const totalVideos = mixedVideos.length;
+
+    const totalPages = Math.ceil(
+        totalVideos / limit
+    );
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                videos,
+                page,
+                limit,
+                totalVideos,
+                totalPages,
+                hasNextPage: page < totalPages,
+                asPreviousPage: page > 1
+            },
+            "Video feed fetched successfully"
+        )
+    )
 })
