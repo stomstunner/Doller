@@ -369,7 +369,27 @@ export const getVideoHomeFeed = asyncHandler(async(req, res)=>{
         }
     );
 
+    // now we remove the duplicate video from the personalizedvideo and popular videos 
+    const uniquePersonalizedVideos = removeDuplicateVideos(personalizedCandidates)
+
+
+    const uniquePopularVideos = removeDuplicateVideos(recentPopularCandidates)
+
+    // now we store the personlizedvideo ka id in a set for better seraching like we want to store only 1 video from personlised and popular video 
+    // Bhai, iska main use aage popular videos ke saath comparison mein hoga, taaki jo video personalized list mein already hai, woh popular list se dobara add na ho.
+
+    const personalizedIds = new Set(
+        // isme ham uniquePersonalizedVideos pe map lagayenge aur har ek video ko lenge aur uske har ek video ke id ko ham string em convert karnge and then ham usse set me store karnge jo ki envetually hamare personlizedIds me store ho jayega 
+        uniquePersonalizedVideos.map(
+            (video) => String(video._id)
+        )
+    )
+
+    // now we remove the videos that are in the personlizedlist     
+    const nonDuplicatePopularVideos = uniquePopularVideos.filter(
+        (video)=> !personalizedIds.has(String(video._id))
+    )
+    // hame apne nonDuplicatePopularVideos me sabse pahle uniquePopularVideos lena hai usme ham filter laga denge jisse hamare pass bass wohi video aayege jo true hold karta hoga ya null nahi hoga filter lagane ke baas ham har ek video ko lenge popular video ko then ham woh videos ko NAHI lenge jiska id hamare personlizedIds me id store hai ahu ha personlizedIds me ham has ka use karnege video ki id find karne ke liye but ham abhi jo video liye hai woh popular video ko video hai toh iske liye ham usse sambse pahle uske id ko string me convert karenge 
+
     
-
-
 })
