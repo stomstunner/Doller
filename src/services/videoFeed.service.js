@@ -50,7 +50,7 @@ function getRecentImpressionCutoffDate(){
 function filterRecentlyShownVideos(videos, impressionMap){
 
     // videos me hamre pass wohi video store hoga jo true return akrege kyuki ham unhiko dikhayenge jo false return karege kyuki woh baar baar feed me aa gaya hai toh usse ham nahi dikahyenge 
-    
+
     return videos.filter(
         // take 1 video at a time 
         (video) => {
@@ -133,6 +133,10 @@ function builtMixedFeed(
     const personlizedIndex = 0;
     const popularIndex = 0;
 
+    // final ordered feed isi array me banaegi
+    const feed =[];
+    // 
+
     // now we use the logic ki jab tak hamre kisi bhi list me video bachu hui hai batches banate rahege 
     while(personlizedIndex < personalizedVideos.length || popularIndex < popularVideos.length){
         // har batch me maximum limit ki videos aayengi
@@ -207,11 +211,12 @@ export const getVideoHomeFeed = asyncHandler(async(req, res)=>{
         1
     );
 
+    // ninimum 10 video return akrnege , max 50
     const limit = Math.min(
         MAX_FEED_LIMIT,
         Math.max(
             // we need default 10 limit
-            Number.parseInt(req.query.limit, 10) || 20,
+            Number.parseInt(req.query.limit, 10) || 10,
             1
         )
     )
@@ -220,11 +225,35 @@ export const getVideoHomeFeed = asyncHandler(async(req, res)=>{
     const userProfile = await builtUserIntrestProfile(userId);
 
     // now we take the video interests 
+    // video related intrest se video relevence score calculate hoga 
     const videoInterests = userProfile.videoInterests;
+
+    // recommendation servide ke popular video ko reuse karnge 
     const popularCandidates = userProfile.popularVideos || [];
 
     // abhi ham latest publieshed video me se candiate video laa rhahe hai
     // but we want ki hamare popular videos bass pichli 3 manine ka hi videos ho na ki all time ka popular videos 
+
+    // now we want ki current user ki recent impression 
+    const impressionRecords = await FeedImpression.find({
+        user : userId,
+        contentType: "video"
+    })
+    .select(
+        "contentType lastShownAt impressionCount"
+    )
+    .lean()
+
+    // now we conver the impression recorde to map so har candidate ki lookup fast ho jaye 
+    const impressionMap = new map();
+
+    for(const impression of impressionRecords){
+        // set the value in the impression map with key and value pair 
+        impressionMap.set(
+            String(impression.contentId),
+            impression
+        )
+    }
     
 
 })
