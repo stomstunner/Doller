@@ -541,10 +541,12 @@ export const getVideoHomeFeed = asyncHandler(
                 }
 
                 // Fallback videos par bhi repeated impression filter apply hoga.
-                return !filterRecentlyShownVideos(
+
+                // ager video baar baar nahi dikhayi ga
+                return filterRecentlyShownVideos(
                     [video],
                     impressionMap
-                ).length === false;
+                ).length >0 ;
             }
         );
 
