@@ -79,4 +79,4 @@ subscriptionSchema.pre("validate", function(){
     }
 })
 
-export const subscription = mongoose.model("subscription", subscriptionSchema)
+export const Subscription = mongoose.model("Subscription", subscriptionSchema)
