@@ -388,7 +388,7 @@ export const builtUserIntrestProfile = async(userId)=>{
                     pipeline:[
                         {
                             $match:{
-                                owner: new mongoose.Types.ObjectId(userId),
+                                repostedBy: new mongoose.Types.ObjectId(userId),
                                 isDeleted: false,
                                 $expr:{
                                     $eq:[
@@ -577,7 +577,7 @@ export const builtUserIntrestProfile = async(userId)=>{
                 $match: {
                     likedBy: new mongoose.Types.ObjectId(userId),
                     comment:{
-                        exists: true,
+                        $exists: true,
                         $ne: null
                     }
                 }
@@ -802,7 +802,7 @@ export const builtUserIntrestProfile = async(userId)=>{
             {
                 $project:{
                     query:{
-                        $ifNull:["$normalisedQuery", "$query"]
+                        $ifNull:["$normalizedQuery", "$query"]
                     },
                     searchType: 1,
                     searchedAt: 1
@@ -1079,7 +1079,7 @@ export const builtUserIntrestProfile = async(userId)=>{
                         {
                             // $$ for variable, $ for field , video direct for model/table
                             $match:{
-                                $exper:{
+                                $expr:{
                                     // both
                                     $and:[
                                         {
@@ -1119,7 +1119,7 @@ export const builtUserIntrestProfile = async(userId)=>{
 
             // now we fetch the folled creator ka tweet fetch kanrenge 
             {
-                $loopup:{
+                $lookup:{
                     from:"tweets",
                     let:{
                         creatorId: "$channel",
@@ -1162,9 +1162,11 @@ export const builtUserIntrestProfile = async(userId)=>{
             },
             {
                 // now we project only the creator ka type and and subcription type
-                type:1,
-                videos: 1,
-                tweets:1
+                $project: {
+                    type:1,
+                    videos: 1,
+                    tweets:1
+                }
             }
         ]
     )
@@ -1173,7 +1175,7 @@ export const builtUserIntrestProfile = async(userId)=>{
     // video creator ke topic ko video presfrence me add aknrenge 
     for(const creator of subscribedCreatorContent){
         if(creator.type === "video"){
-            for(const video of creator.video){
+            for(const video of creator.videos){
                 const videoText =[
                     video.title,
                     video.description,
