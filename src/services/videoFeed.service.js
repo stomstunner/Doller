@@ -130,8 +130,8 @@ function builtMixedFeed(
     const popularLimit = limit - personilizedLimit;
 
     // now we track the current index for the bot list 
-    const personlizedIndex = 0;
-    const popularIndex = 0;
+    let personlizedIndex = 0;
+    let popularIndex = 0;
 
     // final ordered feed isi array me banaegi
     const feed =[];
@@ -144,7 +144,7 @@ function builtMixedFeed(
 
         // now we fill the videos with personlized video first then popular videos 
         // like mere pass 8 personlized videos dalne ka allowence hai toh mai har batch me utne video dlunga 
-        while(batches.lenght < personilizedLimit && personlizedIndex< personalizedVideos.length){
+        while(batches.length < personilizedLimit && personlizedIndex< personalizedVideos.length){
 
             batches.push(personalizedVideos[personlizedIndex]);
             // now we increse the value of the personlizedIndex
@@ -152,7 +152,7 @@ function builtMixedFeed(
         }
 
         // now we fill in batches all the popularVideos
-        while(batches.limit < popularLimit 
+        while(batches.length < popularLimit 
             && batches.length < personilizedLimit + popularLimit 
             && popularIndex < popularVideos.length){
 
@@ -424,7 +424,7 @@ export const getVideoHomeFeed = asyncHandler(async(req, res)=>{
     // now we store the videos from the popular list jo ki hamra na toh phale ke popuar me tha ko ki abhi page me jaa rha hai aur na hi hamre personlised list me hai 
     const fallbackCandidates = candidateVideos.filter(
         (video)=>{
-            const videoId = String(video._Id);
+            const videoId = String(video._id);
 
             // jo video pahle hi source me hai unhe dubar nahi lena hai 
             if(usedVideoIds.has(videoId)) return false;
