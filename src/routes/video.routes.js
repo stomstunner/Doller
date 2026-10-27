@@ -3,6 +3,8 @@ import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 import { createVideo } from "../controllers/video.controller.js";
+import { getVideoHomeFeed } from "../services/videoFeed.service.js";
+
 
 import { upload } from "../middlewares/multer.middleware.js";
 
@@ -24,5 +26,7 @@ router.route("/create-video")
         }
     ])
     ,createVideo);
+
+router.route("/home").get(verifyJWT, getVideoHomeFeed)
 
 export default router;
