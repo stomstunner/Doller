@@ -614,7 +614,135 @@ const getVideoById = asyncHandler(async(req, res) => {
     )
 })
 
+// now we make the controller for the get user videos all the user videos so i can fetch all the video of the single user in a one go 
+const getUserVideos = asyncHandler(async(req, res)=>{
+
+    // now we get the user id from the url / route parameter 
+    const { userId } = req.params;
+
+    // validate user id 
+    validateObjectId(
+        userId,
+        "User ID"
+    )
+
+    // now we write the basic of pagination 
+    const page = Math.max(
+        Number.parseInt(req.query.page ) || 1,
+        1
+    )
+
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit)  || 10,
+            1
+        ),
+        50
+    )
+
+    // now we calculate how many videos we have to skip
+    // example: page 1 par 0 videos skip hongi
+    // page 2 par first 10 videos skip hongi
+    const skip = (page - 1)* limit ;
+
+    // now we make the aggregation pipeline to get the videos 
+    // we fetch the current user video and count the total video
+    const userVideos = await Video.aggregate(
+        [
+            // first of all we take the cureent user with the help of $match then we take only the undeleted and unpublished video 
+            {
+                $match:{
+                    owner: new mongoose.Types.ObjectId(userId),
+                    isDeleted: false,
+                    isPublished: true
+                }
+            },
+            // now we sort the all video to the latest videos first 
+            {
+                $sort:{
+                    createdAt: -1
+                }
+            },
+            // now we use the facet 
+            // facet se ham ek hi pipeline me do kaam karenge 
+            // videos array me paginated video aayegi 
+            // totalCount array me totalcount videos ki result aayegi 
+            {
+                $facet:{
+                    // now we get the vidos for the current page 
+                    videos:[
+                        // first we skip the vidos from the previous page if any page is more than 1 
+                        {
+                            $skip:skip
+                        },
+                        {
+                            $limit: limit
+                        },
+                        // now we selecte the only needed videos to the current page 
+                        {
+                            $project:{
+                                videoFile: 1,
+                                description: 1,
+                                title: 1,
+                                thumbnail: 1,
+                                duration: 1,
+                                viewCount: 1,
+                                owner: 1,
+                                category: 1,
+                                tags: 1,
+                                isPublished: 1,
+                                createdAt: 1,
+                                updatedAt: 1
+                            }
+                        }
+                    ],
+                    // now we count the videos
+                    // ye count pagination skip aur limit se pahle ho ho jayegi 
+                    // matching videos ki total count hongi
+                    totalCount: [
+                        {
+                            $count:"totalVideos"
+                        }
+                    ]
+                }
+            }
+        ]
+    );
+
+    // now we take the result from the aggregation ager result nahi toh ham empty object use karnege 
+    const result = userVideos[0] || {
+        videos: [],
+        totalCount: []
+    }
+
+    // now we store ki hamare pass kitna videos hai ager koi video nahi mili toh hamara total videos zero rahega 
+    const totalVideos = result.totalCount.length > 0 ? result.totalCount[0].totalVideos : 0
+
+    const totalPages = Math.ceil( totalVideos / limit );
+
+
+    // now we return the response 
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                videos : result.videos,
+                page,
+                limit,
+                totalVideos,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPreviousPage: page > 1 && totalPages > 0
+            },
+            "User videos fetched Successfully"
+        )
+    )
+})
+
 export {
     createVideo,
     getVideoById,
+    getUserVideos
 }
