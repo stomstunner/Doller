@@ -12,6 +12,7 @@ import { createTweet,
         incrementTweetView,
         getUserProfileRepostedTweets,
         } from "../controllers/tweet.controller.js";
+import { getTweetHomeFeed } from "../services/tweetFeed.service.js";
 
 import {verifyJWT} from "../middlewares/auth.middleware.js" 
 
@@ -26,12 +27,14 @@ router.route("/get-user-tweets/:userId").get(verifyJWT, getUserTweets);
 router.route("/get-community-feed").get(verifyJWT, getCommunityFeed);
 router.route("/get-tweet-reposts/:tweetId").get(verifyJWT, getTweetReposts);
 router.route("/get-user-reposted-tweets/:userId").get(verifyJWT, getUserProfileRepostedTweets);
+router.route("/tweet-feed").get(verifyJWT,getTweetHomeFeed);
 
 // PATCH routes 
 router.route("/update-tweet/:tweetId").patch(verifyJWT, updateTweet);
 router.route("/toggle-tweet-repost/:tweetId").patch(verifyJWT, toggleTweetRepost);
 router.route("/pin-tweet/:tweetId").patch(verifyJWT, pinTweet);
 router.route("/unpin-tweet/:tweetId").patch(verifyJWT, unpinTweet);
+router.route("/increment-tweet-view/:tweetId").patch(verifyJWT,incrementTweetView);
 
 router.route("/delete-tweet/:tweetId").delete(verifyJWT, deleteTweet);
 
