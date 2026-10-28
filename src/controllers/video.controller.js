@@ -918,27 +918,169 @@ const updateVideo = asyncHandler(async(req, res)=>{
     let uploadedVideo;
     let uploadedThumbnail;
 
-    // now we check ki user ne new video upload ki hai ya nhai
+    // now we check ki user ne new video upload ki hai ya nahi
+    if(videoLocalPath){
 
-    // if the user provided the thumbnail then we upload it on hte cloudinary
+        // now we upload the new video to the cloudinary
+        const newVideo = await uploadOnCloudinary(videoLocalPath, "Video");
+
+        // now we check ki video successfully upload hui ya nahi 
+        if(!newVideo){
+            throw new ApiError(
+                500,
+                "Video upload failed"
+            )
+        }
+
+        // if our video uploaded successfully then 
+        // now we sore the new video information temperolly
+        uploadedVideo = {
+            url: newVideo.secure_url || newVideo.url,
+            publicId: newVideo.public_id
+        };
+
+        // now we update the video file and duration from the new video 
+        updateFields.videoFile = uploadedVideo;
+        updateFields.duration = newVideo.duration;
+
+        // in the video file itself
+        if(!thumbnailLocalPath){
+            // if thumbnail is not provied then we generate the thumbnain form the uploade video file 
+            let thumbnailSecond;
+
+            // now we cehck the video ka duration ager woh 3 sec se bara hu toh ham 3 sec pe apna thumbnai dalenge nahi toh ham 1 sec pe hi thumbnai dalenge 
+            if(newVideo.duration > 3){
+                thumbnailSecond = 3
+            }
+            else{
+                thumbnailSecond = 1;
+            }
+
+            // now we genrate the thumbnail from the url video frame 
+            const thumbnailUrl = uploadedVideo.url.replace(
+                "/video/upload/",
+                `/video/upload/so_${thumbnailSecond}/`
+            ).replace(
+                /\.[^/.]+$/,
+                ".jpg"
+            );
+
+            // now we store the generated thumbnail 
+            // its public id is the same as the new video publicId 
+            updateFields.thumbnail = {
+                url: thumbnailUrl,
+                publicId : uploadedVideo.publicId
+            }
+        }
+
+
+    }
+
+    // now we cehck ki user ne seperate thumbnail upload ki hai ya nhai 
     if(thumbnailLocalPath){
 
+        
+
         // now we upload thumbnail on cloudinary
-        const thumbnail = await uploadOnCloudinary(thumbnailLocalPath);
+        const newThumbnail = await uploadOnCloudinary(thumbnailLocalPath);
 
         // now we check ki hamare pass thumbnail hai bhi ya  nahi 
-        if(!thumbnail){
+        if(!newThumbnail){
             throw new ApiError(
                 500,
                 "Thumbnail Uploading failed "
             )
         }
+
+        // now we store the upload thumbnail information
+        uploadedThumbnail = {
+            url: newThumbnail.secure_url || newThumbnail.url,
+            publicId : newThumbnail.public_id
+        }
+
+        // now we store the new thumbnail in the update filed 
+        updateFields.thumbnail = uploadedThumbnail;
     }
 
-})
+     // now we check ki user ne koi field update karne ke liye di hai ya nahi
+    if(Object.keys(updateFields).length === 0){
+        throw new ApiError(
+            400,
+            "Please provide at least one field to update"
+        );
+    }
+
+    // now we update the fields that are given by user 
+    const updatedVideo = await Video.findOneAndUpdate(
+        {
+            _id: videoId,
+            owner: req.user._id,
+            isDeleted: false
+        },
+        {
+            $set: updateFields
+        },
+        {
+            // now we return the updated values
+            new : true,
+            runValidators: true
+        }
+    );
+
+    // now we cehck ki video hamari sahi se update hui hai ya nhai 
+    if(!updatedVideo){
+
+        // if database update fails 
+        // delete the newly uploaded thumbnail if it was a seperated asset 
+        if(uploadedThumbnail?.publicId && uploadedThumbnail.publicId !== uploadedVideo?.publicId){
+            await deleteFromCloudinary(uploadedThumbnail.publicId)
+        }
+
+        // now we delete the newly uploaded video if non was uploaded 
+        if(uploadedVideo?.publicId){
+            await deleteFromCloudinary(uploadedVideo.publicId)
+        }
+
+        throw new ApiError(
+            500,
+            "Something went wrong while uploading the video"
+        )
+    }
+
+    // now we cehck ki new video upload hui thi ya nhai 
+    if(uploadedVideo?.publicId){
+
+        // now we delete the old video from the cloudinary
+        if(oldVideoFile?.publicId){
+            await deleteFromCloudinary(oldVideoFile.publicId)
+        }
+    }
+
+    //  // now we check ki new thumbnail upload hui thi ya nahi
+    // generated thumbnail may share the video's publicId
+    if( (uploadedThumbnail || uploadedVideo) && oldThumbnail?.publicId && oldThumbnail.publicId !== oldVideoFile?.publicId){
+
+        // now we delete the old thumbnail from the cloudinary 
+        // only id it was the seperate assets 
+        await deleteFromCloudinary(oldThumbnail.publicId)
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            updatedVideo,
+            "Video Updated Successfully"
+        )
+    )
+
+});
 
 export {
     createVideo,
     getVideoById,
-    getUserVideos
+    getUserVideos,
+    updateVideo,
+    
 }
