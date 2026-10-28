@@ -741,6 +741,202 @@ const getUserVideos = asyncHandler(async(req, res)=>{
     )
 })
 
+// now we make the controller for the video updation 
+// user can update its own video only 
+const updateVideo = asyncHandler(async(req, res)=>{
+
+    // first of all we take the video id from the params
+    const {videoId} = req.params;
+
+    // now we validate the videoId from the mongodb
+    validateObjectId(
+        videoId,
+        "Video ID"
+    )
+
+    if(!videoId){
+        throw new ApiError(
+            404,
+            "Video not found"
+        )
+    }
+
+    // now we fetch the data user wants to update 
+    const {title, description, category, tags } = req.body;
+    
+    // now we fetch the video data from the database and only the currently loggend in user can update its own video only 
+    const videoResult = await Video.aggregate(
+        [
+            // first aggregation just to match the video 
+            {
+                $match:{
+                    _id:  new mongoose.Types.ObjectId(videoId),
+                    owner: new mongoose.Types.ObjectId(req.user._id),
+                    isDeleted: false
+                }
+            },
+            // now we project only the required field 
+            {
+                $project:{
+                    _id: 1,
+                    title: 1,
+                    description: 1,
+                    tags: 1,
+                    category: 1,
+                    thumbnail: 1,
+                    videoFile: 1
+                }
+            }
+        ]
+    );
+
+    // now we check ki hamare pass video result me kuch store hai ya nahi ager uska length kuch hoga then we can update 
+    if(videoResult.length === 0){
+        throw new ApiError(
+            404,
+            "Video not found or you are not allowed to update the video"
+        )
+    }
+
+    // now we store the video data to the video object 
+    const video = videoResult[0];
+
+
+    // now we make an empty object jisme ham bass wohi fields ko store karnge jisse hame update karna hai 
+    const updateFields = {};
+
+    // now we check ki user ne title diya hai ya nahi 
+    if(title !== undefined){
+
+        // ager user ne tittle diya hai toh ab ham check karnge ki user ne title empty toh nahi hai 
+        if(!title.trim()){
+            throw new ApiError(
+                400,
+                "Video title cannot be empty"
+            )
+        }
+
+        // now we check ki kahi video title ki length toh 150 characters se bara toh nahi hai na bhai 
+        if(!title.trim().length > 150){
+            throw new ApiError(
+                400,
+                "Video title cannot exceed 150 characters"
+            )
+        }
+
+
+        // now we store the title into the updateFields.title filed me 
+        updateFields.title = title.trim();
+
+        // isse hoga kya ki hamare updatefiled object me title naam ka ek filed  banaega aur uske ander title ko trimmed value store ho jayega 
+
+        
+    }
+    
+    if(description !== undefined  ){
+
+        // now we cehck ki user ne description diya hai ya nahi 
+        if(!description.trim()){
+            // matlab decription me ager kuch hai hi nahi toh hma error denge 
+            throw new ApiError(
+                400,
+                "Video description cannot be empty"
+            )
+        }
+
+
+        // ager user ne decription de diay hai aur uska value haamre pass undefined nahi hai toh ham check akrnege ki bhai uska luch length bhi hai ya nahi 
+        if(!description.trim().length > 5000){
+            throw new ApiError(
+                400,
+                "Video decription cannot exceed 5000 characters"
+            )
+        }
+
+        // now we just update the updateFields ka decription
+        updateFields.description = description.trim();
+    }
+
+    // now we check for the user ne category diya hai ya nahi 
+    // ager nahi diya hoga toh ham null store karnge kyuki category dena hamare liye optional hai 
+    if(category !== undefined){
+
+        // store the category in the updateFields.category but in lowercase and trim and if not avilable then store null 
+        updateFields.category = category.trim().toLowerCase() || null;
+    }
+
+    // now we chek ki user ne tag diya hai ya nhai ager nahi diya hoga toh error denge and we also store the tag in the array becasue we have to store the each tag seperattly 
+    if(tags !== undefined){
+
+        // first of store the each tags in the empty array 
+        let videoTags = [];
+
+        // now we have the 2 option for calucalting the tags ager user ne tags ko as in array diya hoga toh ham array toh just videotags me store karn denge ager user ne
+        // sting me tags ko disya hoga toh ham comma ki help se ya space ki help se pahle string ko seprate karnge then ham tags ko video tags me store karnge 
+        if(Array.isArray(tags)){
+            videoTags = tags
+        }
+        else if(typeof tags === "string"){
+            // now we seperate the tags using the comma 
+            videoTags = tags.split(",")
+        }
+        else{
+            throw new ApiError(
+                400,
+                "Invalid tags format"
+            )
+        }
+
+        // now we store only filterred tags in the video tags 
+        videoTags =videoTags.filter(
+            (tag)=> typeof tag === "string"
+        ).map(
+            (tag)=> tag.trim().toLowerCase()
+        ).filter(
+            (tag)=> tag.length > 0
+        )
+
+        // now we remove the duplicate tags 
+        videoTags = [...new Set(videoTags)];
+
+        // now we just store the tags in the tags in the updateFields
+        updateFields.tags = videoTags;
+    }
+
+    // now the most important thing in the update section is to check for the thumbnail updation 
+    // now we chcek ki user ne thumbnail update ki hai ya nahi 
+
+    // now we store the video and thumbnail old files so we will use this data after updating 
+    const oldVideoFile = video.videoFile;
+    const oldThumbnail = video.thumbnail;
+
+    // now we get the new video and thumbnail from the multer 
+    const videoLocalPath = req.files?.video?.[0]?.path;
+    const thumbnailLocalPath = req.files?.thumbnail?.[0]?.path;
+
+    // now we make the variable to store the uploaded assets 
+    let uploadedVideo;
+    let uploadedThumbnail;
+
+    // now we check ki user ne new video upload ki hai ya nhai
+
+    // if the user provided the thumbnail then we upload it on hte cloudinary
+    if(thumbnailLocalPath){
+
+        // now we upload thumbnail on cloudinary
+        const thumbnail = await uploadOnCloudinary(thumbnailLocalPath);
+
+        // now we check ki hamare pass thumbnail hai bhi ya  nahi 
+        if(!thumbnail){
+            throw new ApiError(
+                500,
+                "Thumbnail Uploading failed "
+            )
+        }
+    }
+
+})
+
 export {
     createVideo,
     getVideoById,
