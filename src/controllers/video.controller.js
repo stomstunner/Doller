@@ -8,6 +8,8 @@ import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js
 import { Comment } from "../models/comment.models.js";
 import { User } from "../models/user.models.js";
 import { Like } from "../models/like.models.js";
+import {Repost } from "../models/repost.models.js";
+
 import mongoose, { set } from "mongoose";
 
 // lets create the createVideo controller 
@@ -1111,11 +1113,223 @@ const deleteVideo = asyncHandler(async(req, res)=>{
                     let:{
                         videoId: "$_id"
                     },
-                    as: "videoComments"
+                    as: "videoComments",
+                    pipeline:[
+                        // first we match ki hamara current comment ka video id aur video jo aayi hai uski id like hamare comment ducumnet me woh kis chiz ka comment hai woh likha rehta hai so ham yaha pahle check karenge ki hamara current comment me jo video id hai kya woh same hai jo id hame req.prams se mili hai video ke liye 
+                        {
+                            $match:{
+                                $expr:{
+                                    $eq: [
+                                        "$video",
+                                        "$$videoId"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            // now we get all replies from the comments 
+                            $graphLookup:{
+                                // kaha se hame replies ko dhundna hai 
+                                from:"comments",
+                                // replies ke liye hame sabse pahle kon si field dekhni hai 
+                                startWith:"_id",
+                                // ab ager hame ek comment ki reply mil gai toh ab ham uss reply ko as a parent maan ke uske sare replay ko search karnenge 
+                                connectFromField:"_id",
+                                // ab hame kis field ko khojna hai ki woh replau hoga 
+                                connectToField:"parentComment",
+                                as:"replies"
+                            }
+                        },
+                        {
+                            // now we only keep the all comments id and its replies id 
+                            // uper wale se kya hai ki ek recursive structure ban jayega like comment then uske child comments as  a replies 
+                            $project:{
+                                _id: 1,
+                                replyIds:"$replies._id"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                // now we get all the likes belonging to this videos 
+                $lookup:{
+                    from:"likes",
+                    localField:"_id",
+                    foreignField:"video",
+                    as:"videoLikes",
+                    pipeline:[
+                        {
+                            $project:{
+                                _id:1,
+                                comment: 1
+                            }
+                        }
+                    ]
+
+                }
+            },
+            {
+                // now we get all the repost belonging to this video
+                $lookup:{
+                    from:"reposts",
+                    localField:"_id",
+                    foreignField:"video",
+                    as:"videoReposts",
+                    pipeline:[
+                        {
+                            $project:{
+                                _id: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                // now we get the all the playlists containning this video 
+                $lookup:{
+                    from: "playlists",
+                    let:{
+                        videoId: "$_id",
+                    },
+                    as: "videoPlaylists",
+                    pipeline:[
+                        {
+                            match:{
+                                $expr:{
+                                    $eq:[
+                                        "$$videoId",
+                                        "$videos"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            $project:{
+                                _id: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $project:{
+                    _id: 1,
+                    videoFile:1,
+                    thumbnail:1,
+                    videoComments: 1,
+                    videoReposts: 1,
+                    videoLikes: 1,
+                    videoPlaylists: 1
                 }
             }
         ]
+    );
+
+    // now we check the videoResult exists or not 
+    if(videoResult.length === 0){
+        throw new ApiError(
+            404,
+            "Video not found or you are not allowed to delete this video"
+        )
+    }
+
+    // now we store the video data 
+    const video = videoResult[0];
+
+    // now we collect all the comments and replies ids 
+    const commentIds = [];
+
+    for(const comment of video.videoComments){
+        // first we push the main comment id 
+        commentIds.push(comment._id);
+
+        // now we push all the replies ids 
+        for(const reply of comment.replyIds){
+            commentIds.push(replyId);
+        }
+    }
+
+
+    // now we remove the duplicate ids 
+    const uniqueCommentIds = [
+        ...new Set(commentIds.map( 
+            (id) => id.toString()
+        ))
+    ];
+
+
+    // now we delete the thumbnail from the coloudinary only if they have the seperate public ids
+    if(video.thumbnail?.publicId && video.thumbnail.publicId !== video.videoFile?.publicId){
+        try{
+            await deleteFromCloudinary(video.thumbnail.publicId);
+        }
+        catch(error){
+            console.log(error);
+            
+        }
+    }
+
+    // now we delete the video file from the cloudinary 
+    if(video.videoFile?.publicId){
+        try{
+            await deleteFromCloudinary(video.videoFile?.publicId, "video");
+        }
+        catch(error){
+            console.log(error);
+            
+        }
+    }
+
+    // now we delete all the likes on comment and replies 
+    await Like.deleteMany({
+        comment:{
+            $in: uniqueCommentIds
+        }
+    })
+
+    // now we delete all the comment and replies 
+    await Comment.deleteMany({
+        _id:{
+            $in:uniqueCommentIds
+        }
+    })
+
+    // now we delete all the likes on the video 
+    await Like.deleteMany({
+        video: video._id
+    })
+
+    // now we delete all the repost on this video
+    await Repost.deleteMany({
+        video:video_id
+    })
+
+    // now we remove this video from all the playlists 
+    await Playlist.updateMany(
+        {
+            videos: video._id
+        },
+        {
+            $pull:{
+                videos: video._id
+            }
+        }
     )
+
+    // now we permanently delte the video 
+    await video.findByIdAndDelete(video._id);
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {},
+            "Video deleted successfully"
+        )
+    )
+
 })
 
 export {
@@ -1123,5 +1337,6 @@ export {
     getVideoById,
     getUserVideos,
     updateVideo,
+    deleteVideo
 
 }
