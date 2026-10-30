@@ -11,6 +11,7 @@ import { Like } from "../models/like.models.js";
 import {Repost } from "../models/repost.models.js";
 
 import mongoose, { set } from "mongoose";
+import { View } from "../models/view.models.js";
 
 // lets create the createVideo controller 
 const createVideo = asyncHandler(async(req, res)=> {
@@ -1332,11 +1333,170 @@ const deleteVideo = asyncHandler(async(req, res)=>{
 
 })
 
+// Video 5 seconds se chhoti hai → open hote hi view count.
+// Video 5 seconds ya usse lambi hai → 5 seconds playback ke baad view count.
+// Ek hi user ka same video view 5 minutes ke andar dobara count nahi hoga.
+// 5 minutes ke baad dobara view count ho sakta hai.
+// now we make the controller for the incrementVideoView
+const incrementVideoView = asyncHandler(async(req, res)=>{
+
+    // first we take the video id 
+    const {videoId}= req.params;
+
+    // now we take the session id and watched seconds from the frontend
+    const {sessionId, watchedSeconds} = req.body;
+
+    validateObjectId(
+        videoId,
+        "Video ID"
+    );
+
+    if(!videoId){
+        throw new ApiError(
+            404,
+            "Video not Found"
+        )
+    }
+    if(!sessionId){
+        throw new ApiError(
+            400,
+            "Session is required"
+        )
+    }
+    // we take only string session id and only 100 character long 
+    if(typeof sessionId !== "string" || sessionId.length > 100){
+        throw new ApiError(
+            400,
+            "Invalid session ID"
+        )
+    }
+    // now we convert the watched seconds into the numbers 
+
+    const totalWatchedSeconds = Number(watchedSeconds || 0)
+
+    // now we check ki hamara watched seconds jo hai woh valid bhi hai ya nahi 
+    if(!Number.isFinite(totalWatchedSeconds) || totalWatchedSeconds < 0){
+        throw new ApiError(
+            400,
+            "Invalid watched seconds "
+        )
+    }
+
+    // ab databse se vlaid video find karnege 
+    const video = await Video.aggregate(
+        [
+            {
+                $match:{
+                    _id: new mongoose.Types.ObjectId(videoId),
+                    isDeleted : false
+                }
+            },
+            {
+                // we want only the duration and viewCount
+                $project:{
+                    duration: 1,
+                    viewCount: 1
+                }
+            }
+        ]
+    );
+
+    // ager video me kuch nahi hai toh error denge 
+    if(video.length === 0){
+        throw new ApiError(
+            404,
+            "Video not Found"
+        )
+    }
+
+    // now we store the video ka data in one variable 
+    const currentVideo = video[0];
+
+    if(currentVideo.duration >= 5 && totalWatchedSeconds < 5){
+
+        return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    viewAdded: false,
+                    viewCount: currentVideo.viewCount
+                },
+                "Watch the video for atleast for 5 seconds"
+            )
+        )
+    }
+
+    // now we check ki iss session is video ka view pahle count hua hai ya nahi 
+    const existingView = await View.findOne(
+        {
+            user: req.user._id,
+            video: videoId,
+            sessionId: sessionId
+        }
+    )
+
+    // ager view pahle hi count ho chuka hai toh dubra view count nahi badhega 
+    if(existingView){
+        return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    viewAdded: false,
+                    viewCount: currentVideo.viewCount
+                },
+                "Video view is already counted in this session"
+            )
+        )
+    }
+
+    // ager view phale nahi bana hai toh ham view ko count karenge 
+    await View.create(
+        {
+            user: req.user._id,
+            video: videoId,
+            sessionId: sessionId
+        }
+    )
+
+    // now we increase the video ka viewcount from 1 
+    const updatedVideo = await Video.findByIdAndUpdate(
+        videoId,
+        {
+            $inc:{
+                viewCount: 1
+            }
+        },
+        {
+            $new : true
+        }
+    ).select("viewCount")
+
+
+    // now we return the response 
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                viewAdded: true,
+                viewCount: updatedVideo.viewCount
+            },
+            "Video view counted Successfully"
+        )
+    )
+})
+
 export {
     createVideo,
     getVideoById,
     getUserVideos,
     updateVideo,
-    deleteVideo
+    deleteVideo,
+    incrementVideoView,
 
 }
