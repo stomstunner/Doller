@@ -18,6 +18,9 @@ const viewSchema = new Schema({
         type: Schema.Types.ObjectId,
         ref: "Playlist"
     },
+    sessionId:{
+        type: String
+    },
     viewedAt: {
         type: Date,
         default: Date.now
@@ -71,5 +74,17 @@ viewSchema.index(
         }
     }
 )
+
+// Ek user ek session mein ek video ka sirf ek view count karwa sakta hai
+viewSchema.index(
+    { user: 1, video: 1, sessionId: 1 },
+    {
+        unique: true,
+        partialFilterExpression: {
+            video: { $exists: true },
+            sessionId: { $exists: true }
+        }
+    }
+);
 
 export const View = new mongoose.model("View", viewSchema)
