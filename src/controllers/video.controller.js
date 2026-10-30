@@ -1077,10 +1077,51 @@ const updateVideo = asyncHandler(async(req, res)=>{
 
 });
 
+// lets make the controller for the delete video controller 
+const deleteVideo = asyncHandler(async(req, res)=>{
+    // we take the video id
+    const{videoId} = req.params;
+
+    validateObjectId(
+        videoId,
+        "Video ID"
+    )
+
+    if(!videoId){
+        throw new ApiError(
+            404,
+            "Video not Found"
+        )
+    };
+
+    // now we take the video from the aggregation and check ki user toh same hai na owner same hai na video ka 
+    const videoResult = await Video.aggregate(
+        [
+            {
+                $match:{
+                    _id: new mongoose.Types.ObjectId(videoId),
+                    owner: new mongoose.Types.ObjectId(req.user._id),
+                    isDeleted: false
+                }
+            },
+            // now we get the all comment related to this video 
+            {
+                $lookup:{
+                    from:"comments",
+                    let:{
+                        videoId: "$_id"
+                    },
+                    as: "videoComments"
+                }
+            }
+        ]
+    )
+})
+
 export {
     createVideo,
     getVideoById,
     getUserVideos,
     updateVideo,
-    
+
 }
