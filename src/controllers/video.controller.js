@@ -1593,6 +1593,211 @@ const toggleVideoRepost = asyncHandler(async(req,res)=>{
     )
 });
 
+const getVideoReposts = asyncHandler(async(req,res)=>{
+    const {userId} = req.user._id;
+
+    validateObjectId(
+        userId,
+        "User ID"
+    )
+
+    if(!userId){
+        throw new ApiError(
+            404,
+            "User not found"
+        )
+    }
+
+     // pagination
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    );
+
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 20,
+            1
+        ),
+        100
+    );
+
+    const skip = (page - 1) * limit;
+
+
+    const userReposts = await Repost.aggregate(
+        [
+            {
+                $match:{
+                    repostedBy: userId
+                }
+            },
+            {
+                $lookup:{
+                    from:"videos",
+                    localField: "video",
+                    foreignField:"_id",
+                    as: "video",
+                    pipeline:[
+                        {
+                            $match:{
+                                isDeleted: false
+                            }
+                        },
+                        {
+                            $project:{
+                                videoFile: 1,
+                                description: 1,
+                                thumbnail: 1,
+                                duration: 1,
+                                viewCount: 1,
+                                owner: 1,
+                                createdAt: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            // lookup always returns an array
+            // but one repost belongs to only one video
+            // so convert the array into object
+            {
+                $addFields: {
+                    video: {
+                        $first: "$video"
+                    }
+                }
+            },
+            {
+                // now we ignore the deleted video 
+                $match:{
+                    video:{
+                        $ne: null
+                    }
+                }
+            },
+            {
+                // now we get the owner detalis from the each video 
+                $lookup:{
+                    from : "users",
+                    localField:"video.owner",
+                    foreignField:"_id",
+                    as: "videoOwner",
+                    pipeline:[
+                        {
+                            $project:{
+                                fullName: 1,
+                                avatar: 1,
+                                username: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $addFields:{
+                    videoOwner:{
+                        $first: "$videoOwner"
+                    }
+                }
+            },
+            // now we select what we  need from the repost  document 
+            {
+                $project:{
+                    video: 1,
+                    videoOwner: 1,
+                    createdAt: 1
+                }
+            },
+            {
+                // now we show the latest repost first
+                $sort: {
+                    createdAt: -1
+                }
+            },
+            {
+                $skip: skip
+            },
+            {
+                $limit: limit
+            }
+
+        ]
+    );
+
+    // now we get the total repost count
+    const totalCountResult = await Repost.aggregate(
+        [
+            {
+                $match: {
+                    repostedBy: userId
+                }
+            },
+
+
+            // count all repost documents of current user
+            {
+                $lookup: {
+                    from: "videos",
+                    localField: "video",
+                    foreignField: "_id",
+                    as: "video",
+
+                    pipeline: [
+                        {
+                            $match: {
+                                isDeleted: false
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 1
+                            }
+                        }
+                    ]
+                }
+            },
+
+
+            // remove reposts whose videos do not exist
+            // or are deleted
+            {
+                $match: {
+                    "video.0": {
+                        $exists: true
+                    }
+                }
+            },
+
+
+            // now count total valid reposts
+            {
+                $count: "totalReposts"
+            }
+        ]
+    );
+
+
+    // now we find the total reposts
+    const totalReposts = totalCountResult[0]?.totalReposts || 0;
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                userReposts,
+                page,
+                limit,
+                totalReposts,
+                totalPages: Math.ceil(totalReposts / limit),
+                hasNextPage: (page * limit) < totalReposts
+            },
+            "User reposted video fetched Successfully"
+        )
+    )
+})
 
 export {
     createVideo,
@@ -1602,5 +1807,5 @@ export {
     deleteVideo,
     incrementVideoView,
     toggleVideoRepost,
-    
+    getVideoReposts
 }
