@@ -1491,6 +1491,109 @@ const incrementVideoView = asyncHandler(async(req, res)=>{
     )
 })
 
+
+// now we create controller for the toggle of video repost 
+const toggleVideoRepost = asyncHandler(async(req,res)=>{
+
+    const {videoId} = req.params;
+
+    validateObjectId(
+        videoId,
+        "Video ID"
+    )
+
+    if(!videoId){
+        throw new ApiError(
+            404,
+            "Video not found for repost"
+        )
+    }
+
+    // now we make the video where we fetch the details from the video from database
+
+    const video = await Video.aggregate(
+        [
+            {
+                $match:{
+                    _id: new mongoose.Types.ObjectId(videoId),
+                    isDeleted: false 
+                }
+            },
+            {
+                $project:{
+                    _id: 1
+                }
+            }
+        ]
+    )
+
+    if(!video){
+        throw new ApiError(
+            404,
+            "Video not found in database"
+        )
+    }
+
+    // now we check ki user ne is video pe pahle se hi repost kiya hai ya nahi 
+    const existingRepost = await Repost.findOne({
+        video: videoId,
+        repostedBy: req.user._id
+    })
+
+    // if currently user already reposted this video 
+    if(existingRepost){
+        // now we delte the existing reposted  document 
+        await Repost.findByIdAndDelete(
+            existingRepost._id
+        )
+    }
+    else{
+        // if current user does not reposted this video then repost this 
+        await Repost.create({
+            video: videoId,
+            repostedBy: req.user._id
+        })
+    }
+
+    // now we get the total repost cound from the video from the repost collection 
+    const repostResult = await Repost.aggregate(
+        [
+            {
+                $match:{
+                    video: videoId,
+                    // we take all reposts from the current video 
+                }
+            },
+            {
+                // count all matching doucment 
+                $count:"repostCount"
+            }
+        ]
+    )
+
+    // if no repostCount will be exxst then the count will be zero 
+    const repostCount = repostResult.length > 0 ? repostResult[0].repostCount : 0;
+
+    // now we check the updated status for the current user of repost 
+    const isReposted = !existingRepost;
+    // existingRepost mila → user ka repost delete hua → isReposted = false.
+    // existingRepost nahi mila → naya repost create hua → isReposted = true.
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                isReposted,
+                repostCount
+            },
+            isReposted ? "Video Reposted SuccessFully" : "Video repost removed successfully"
+        )
+    )
+});
+
+
 export {
     createVideo,
     getVideoById,
@@ -1498,5 +1601,6 @@ export {
     updateVideo,
     deleteVideo,
     incrementVideoView,
-
+    toggleVideoRepost,
+    
 }
