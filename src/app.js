@@ -16,7 +16,7 @@ import tweetRouter from "./routes/tweet.routes.js";
 
 import videoRouter from "./routes/video.routes.js";
 
-import searchRouter from "./routes/history.routes.js";
+import searchRouter from "./routes/search.routes.js";
 
 const app = express();
 
