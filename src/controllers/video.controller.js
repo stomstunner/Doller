@@ -6,11 +6,10 @@ import { Video } from "../models/video.models.js";
 import { uploadOnCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
 
 import { Comment } from "../models/comment.models.js";
-import { User } from "../models/user.models.js";
 import { Like } from "../models/like.models.js";
-import {Repost } from "../models/repost.models.js";
-
-import mongoose, { set } from "mongoose";
+import { Repost } from "../models/repost.models.js";
+import { Playlist } from "../models/playlist.models.js";
+import mongoose from "mongoose";
 import { View } from "../models/view.models.js";
 
 // lets create the createVideo controller 
@@ -48,7 +47,7 @@ const createVideo = asyncHandler(async(req, res)=> {
     .filter((tag) => tag.length > 0);
 
     // now we want that ki ham bass single value ko hi rakhe duplicate ko hata de 
-    videoTags = [...new set(videoTags)];
+    videoTags = [...new Set(videoTags)];
 
 
     // now we get the video file from  req.files
@@ -57,7 +56,7 @@ const createVideo = asyncHandler(async(req, res)=> {
     // here we check first ki hamara video exists karta bhi hai ya nahi 
     // then we access the video array 
     // and then we get the first video from the array 
-    const videoLocalPath = req.files?.video[0]?.path;
+    const videoLocalPath = req.files?.video?.[0]?.path;
 
     if(!videoLocalPath){
         throw new ApiError(
@@ -170,6 +169,8 @@ const createVideo = asyncHandler(async(req, res)=> {
         description : description.trim(),
         duration : video.duration,
         owner: req.user._id,
+        category: videoCategory, 
+        tags: videoTags
     });
 
     if(!createdVideo){
@@ -199,7 +200,7 @@ const createVideo = asyncHandler(async(req, res)=> {
     .json(
         new ApiResponse(
             201,
-            createVideo,
+            createdVideo,
             "Video uploaded successfully"
         )
     )
@@ -333,7 +334,7 @@ const getVideoById = asyncHandler(async(req, res) => {
                     pipeline:[
                         {
                             $match: {
-                                _id: new mongoose.Types.ObjectId(req.user._id)
+                                repostedBy: new mongoose.Types.ObjectId(req.user._id)
                             }
                         }
                     ]
@@ -420,7 +421,7 @@ const getVideoById = asyncHandler(async(req, res) => {
                                 $gt: [
                                     // 1st value then 2nd value 
                                     {
-                                        $size: "userComment"
+                                        $size: "$userComment"
                                     },
                                     0
                                 ]
@@ -488,7 +489,7 @@ const getVideoById = asyncHandler(async(req, res) => {
                             {
                                 $gt:[
                                     {
-                                        $size: "playlists"
+                                        $size: "$playlists"
                                     },
                                     0
                                 ]
@@ -515,7 +516,7 @@ const getVideoById = asyncHandler(async(req, res) => {
                                                 // kiss array ko filter karna hai 
                                                 // uska ky naam dena hai 
                                                 // ckeck karnege ki current playlist ka isAdded ture hai ya nhai 
-                                                input: "playlists",
+                                                input: "$playlists",
                                                 as: "playlist",
                                                 cond:{
                                                     $eq:[
@@ -591,20 +592,20 @@ const getVideoById = asyncHandler(async(req, res) => {
 
     const video = videoResult[0];
 
-    // now we increase the view count 
-    const updatedVideo = await Video.findByIdAndUpdate(
-        videoId,
-        {
-            $inc: {
-                viewCount: 1
-            }
-        },
-        {
-            new : true
-        }
-    )
-    // now we increse the video.viewCount ka vlaue with the updated.viewCount because we run the aggregation first 
-    video.viewCount = updatedVideo.viewCount;
+    // // now we increase the view count 
+    // const updatedVideo = await Video.findByIdAndUpdate(
+    //     videoId,
+    //     {
+    //         $inc: {
+    //             viewCount: 1
+    //         }
+    //     },
+    //     {
+    //         new : true
+    //     }
+    // )
+    // // now we increse the video.viewCount ka vlaue with the updated.viewCount because we run the aggregation first 
+    // video.viewCount = updatedVideo.viewCount;
 
     return res
     .status(200)
@@ -849,7 +850,7 @@ const updateVideo = asyncHandler(async(req, res)=>{
 
 
         // ager user ne decription de diay hai aur uska value haamre pass undefined nahi hai toh ham check akrnege ki bhai uska luch length bhi hai ya nahi 
-        if(!description.trim().length > 5000){
+        if(description.trim().length > 5000){
             throw new ApiError(
                 400,
                 "Video decription cannot exceed 5000 characters"
@@ -1132,8 +1133,9 @@ const deleteVideo = asyncHandler(async(req, res)=>{
                             $graphLookup:{
                                 // kaha se hame replies ko dhundna hai 
                                 from:"comments",
-                                // replies ke liye hame sabse pahle kon si field dekhni hai 
-                                startWith:"_id",
+                                // replies ke liye hame sabse pahle kon si field dekhni hai
+                                // $graphLookup me field reference ke liye $ chahiye 
+                                startWith:"$_id",
                                 // ab ager hame ek comment ki reply mil gai toh ab ham uss reply ko as a parent maan ke uske sare replay ko search karnenge 
                                 connectFromField:"_id",
                                 // ab hame kis field ko khojna hai ki woh replau hoga 
@@ -1196,9 +1198,9 @@ const deleteVideo = asyncHandler(async(req, res)=>{
                     as: "videoPlaylists",
                     pipeline:[
                         {
-                            match:{
+                            $match:{
                                 $expr:{
-                                    $eq:[
+                                    $in:[
                                         "$$videoId",
                                         "$videos"
                                     ]
@@ -1247,7 +1249,7 @@ const deleteVideo = asyncHandler(async(req, res)=>{
 
         // now we push all the replies ids 
         for(const reply of comment.replyIds){
-            commentIds.push(replyId);
+            commentIds.push(reply);
         }
     }
 
@@ -1303,7 +1305,7 @@ const deleteVideo = asyncHandler(async(req, res)=>{
 
     // now we delete all the repost on this video
     await Repost.deleteMany({
-        video:video_id
+        video:video._id
     })
 
     // now we remove this video from all the playlists 
@@ -1319,7 +1321,7 @@ const deleteVideo = asyncHandler(async(req, res)=>{
     )
 
     // now we permanently delte the video 
-    await video.findByIdAndDelete(video._id);
+    await Video.findByIdAndDelete(video._id);
 
     return res
     .status(200)
@@ -1471,7 +1473,7 @@ const incrementVideoView = asyncHandler(async(req, res)=>{
             }
         },
         {
-            $new : true
+            new : true
         }
     ).select("viewCount")
 
@@ -1527,7 +1529,7 @@ const toggleVideoRepost = asyncHandler(async(req,res)=>{
         ]
     )
 
-    if(!video){
+    if(video.length === 0){
         throw new ApiError(
             404,
             "Video not found in database"
@@ -1536,7 +1538,7 @@ const toggleVideoRepost = asyncHandler(async(req,res)=>{
 
     // now we check ki user ne is video pe pahle se hi repost kiya hai ya nahi 
     const existingRepost = await Repost.findOne({
-        video: videoId,
+        video:  new mongoose.Types.ObjectId(videoId),
         repostedBy: req.user._id
     })
 
@@ -1560,7 +1562,7 @@ const toggleVideoRepost = asyncHandler(async(req,res)=>{
         [
             {
                 $match:{
-                    video: videoId,
+                    video: new mongoose.Types.ObjectId(videoId)
                     // we take all reposts from the current video 
                 }
             },
@@ -1594,7 +1596,7 @@ const toggleVideoRepost = asyncHandler(async(req,res)=>{
 });
 
 const getVideoReposts = asyncHandler(async(req,res)=>{
-    const {userId} = req.user._id;
+    const userId = req.user._id;
 
     validateObjectId(
         userId,
