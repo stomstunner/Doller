@@ -45,20 +45,20 @@ viewSchema.index(
     }
 )
 
-viewSchema.index(
-    {
-        user: 1,
-        video: 1
-    },
-    {
-        unique: true,
-        partialFilterExpression: {
-            video: {
-                $exists: true
-            }
-        }
-    }
-)
+// viewSchema.index(
+//     {
+//         user: 1,
+//         video: 1
+//     },
+//     {
+//         unique: true,
+//         partialFilterExpression: {
+//             video: {
+//                 $exists: true
+//             }
+//         }
+//     }
+// )
 
 viewSchema.index(
     {
