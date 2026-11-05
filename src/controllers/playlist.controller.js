@@ -344,20 +344,218 @@ const addVideoTOPlaylist = asyncHandler(async(req,res)=>{
             "Video added to playlist SuccessFully"
         )
     )
-
-
-
-
-
-
-
-
-
 })
+
+// now we make the controller for the remove the controller for the remove video from playlist 
+const removeVideoFromPlaylist = asyncHandler(async(req,res)=>{
+    const {playlistId, videoId} = req.params;
+    validateObjectId(
+        playlistId,
+        "Playlist ID"
+    )
+    if(!playlistId){
+        throw new ApiError(
+            404,
+            "Playlist not found"
+        )
+    }
+    validateObjectId(
+        videoId,
+        "Video ID"
+    )
+    if(!videoId){
+        throw new ApiError(
+            404,
+            "Video not found"
+        )
+    }
+    const playlistObjectId = new mongoose.Types.ObjectId(playlistId)
+    const videoObjectId = new mongoose.Types.ObjectId(videoId)
+
+    // now we fetch the playlist using aggregation 
+    const playlistResult = await Playlist.aggregate(
+        [
+            {
+                $match:{
+                    _id: playlistObjectId,
+                    isDeleted: false,
+                    owner: new mongoose.Types.ObjectId(req.user._id)
+                }
+            },
+            {
+                // now we check ki hamare playlist me ye current video added hai ya nahi 
+                $addFields:{
+                    isVideoAdded:{
+                        $in:[
+                            videoObjectId,
+                            "$videos"
+                        ]
+                    }
+                }
+            },
+            {
+                // now we remove the video id from the databse without actully undating the database 
+                $addFields:{
+                    remainingVideos :{
+                        input: "$videos",
+                        as: "videoId",
+                        cond:{
+                            $ne:[
+                                "$videoId",
+                                videoObjectId
+                                // like we are take the videos in the remainingVideos that are not equal to the videoobject id and the current video object id
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                // now we get the latest remmaning videos 
+                // remainingVideos array ka last element
+                // latest remaining video ki id hogi
+                $lookup:{
+                    from:"videos",
+                    let:{
+                        latestVideoId:{
+                            $arrayElemAt:[
+                                "$remainingVideos",
+                                -1
+                            ]
+                        }
+                    },
+                    pipeline:[
+                        {
+                            // now we match that video in video collection 
+                            $match:{
+                                $expr:{
+                                    $eq:[
+                                        "$_id",
+                                        "$$latestVideoId"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            // now we get only thumbnailinformation 
+                            $project:{
+                                thumbnail: 1
+                            }
+                        }
+                    ],
+                    as:"latestVideo"
+                }
+            },
+            {
+                $addFields:{
+                    // now we convert the latest video array to an object 
+                    latestVideo:{
+                        $first:"$latestVideo"
+                    }
+                }
+            },
+            {
+                $project:{
+                    videos: 1,
+                    videoCount: 1,
+                    isOwner: 1,
+                    isVideoAdded: 1,
+                    remainingVideos: 1,
+                    latestVideo: 1
+                }
+            }
+        ]
+    )
+
+    // now we cehk ki hamare palylist result me kuch hai bhi ya nahi 
+    if(playlistResult.length === 0){
+        throw new ApiError(
+            404,
+            "Playlist not found"
+        )
+    }
+
+    // now we get the playlist data 
+    const playlist = playlistResult[0];
+
+    // now we check weater the video is added in the playlist or not 
+    if(!playlist.isVideoAdded){
+        throw new ApiError(
+            404,
+            "Video is not present in this playlist"
+        )
+    }
+
+     // now we initialize the thumbnail as empty
+    // if no video remains in playlist then thumbnail will be empty
+    let thumbnail = {
+        url: "",
+        publicId: ""
+    };
+
+    // if any video remains in the playlist then we use his thumbnail
+    if(playlist.latestVideo){
+        thumbnail={
+            url:playlist.latestVideo.thumbnail.url,
+            publicId: playlist.latestVideo.thumbnail.publicId
+        }
+    }
+
+    // now we remove the video and and update thumbnail in one databse operation 
+    const updatedPlaylist = await Playlist.findOneAndUpdate(
+        {
+            _id: playlistObjectId,
+            owner: new mongoose.Types.ObjectId(req.user._id),
+            isDeleted: false,
+            videos: { 
+                $elemMatch: { 
+                    $eq: videoObjectId
+                } 
+            }
+
+        },
+        {
+            // now we remove the current video form the video array 
+            $pull:{
+                videos: videoObjectId
+            },
+            // decrease video count by one 
+            $inc:{
+                videoCount: -1
+            },
+            // update playlist thumbnail 
+            $set:{
+                thumbnail: thumbnail
+            }
+        },
+        {
+            new: true
+        }
+    );
+
+    if(!updatedPlaylist){
+        throw new ApiError(
+            409,
+            "Failed to remove video from playlist"
+        )
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            updatedPlaylist,
+            "Video removed from playlist SuccessFully"
+        )
+    )
+})
+
+
 
 
 
 export {
     createPlaylist,
     addVideoTOPlaylist,
+    removeVideoFromPlaylist,
 }
