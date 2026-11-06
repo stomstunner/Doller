@@ -550,7 +550,108 @@ const removeVideoFromPlaylist = asyncHandler(async(req,res)=>{
     )
 })
 
+// now we make the controller for the getPlayListById 
+const getPlaylistById = asyncHandler(async(req,res)=>{
 
+    // first of all we get the playlist id and user is 
+    const {playlistId}= req.params;
+
+    validateObjectId(
+        playlistId,
+        "Playlist ID"
+    )
+
+    if(!playlistId){
+        throw new ApiError(
+            404,
+            "Playlist id is required"
+        )
+    }
+
+    const playlistObjectId = new mongoose.Types.ObjectId(playlistId);
+    const userObjectId = new mongoose.Types.ObjectId(req.user._id);
+
+    // now we get the playlistResult 
+    const playlistResult = await Playlist.aggregate(
+        [
+            {
+                $match:{
+                    _id: playlistObjectId,
+                    isDeleted: false,
+                    // now we write the code if the user is not the owner then they can see the public playlist or if they are the owner then they can see the playlist wheater is was private 
+                    $or:[
+                        {
+                            isPublic : true,
+                        },
+                        {
+                            owner : userObjectId,
+                        }
+                    ]
+
+                }
+            },
+            {
+                // now we look in to the user model 
+                $lookup:{
+                    from: "users",
+                    localField:"owner",
+                    foreignField:"_id",
+                    as: "owner",
+                    pipeline:[
+                        $project:{
+                            fullName: 1,
+                            username: 1,
+                            avatar: 1   
+                        }
+                    ]
+                }
+            },
+            {
+                // now we chage the array of the ower field to the object 
+                $addFields:{
+                    owner:{
+                        $first:"$owner"
+                    }
+                }
+            },
+            {
+                // at the last we take only the required fields from the playlist 
+                $project:{
+                    name: 1, 
+                    description: 1,
+                    owner: 1,
+                    videoCount:1,
+                    saveCount: 1,
+                    isPublic: 1,
+                    isDeleted: 1,
+                    createdAt: 1,
+                    thumbnail: 1,
+                    updatedAt: 1
+                }
+            }
+        ]
+    );
+
+    // now we check ki hamare paslylist ki koi result hai bhi ya empty toh nahi 
+    if(playlistResult.length === 0){
+        throw new ApiError(
+            408,
+            "Playlist not found or you are not allowed to access the playlist"
+        )
+    }
+
+    const playlist = playlistResult[0];
+
+    return res
+    .json(200)
+    .json(
+        new ApiResponse(
+            200,
+            playlist,
+            "Playlist Fetched SuccessFully"
+        )
+    )
+})
 
 
 
@@ -558,4 +659,6 @@ export {
     createPlaylist,
     addVideoTOPlaylist,
     removeVideoFromPlaylist,
+    getPlaylistById,
+    
 }
