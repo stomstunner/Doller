@@ -653,6 +653,186 @@ const getPlaylistById = asyncHandler(async(req,res)=>{
     )
 })
 
+// now we make the controller that will fetched or show all the playlist video at once
+const getPlaylistVideos = asyncHandler(async(req, res)=>{
+    // first of all we ge the playlist id from the req params
+    const {playlistId} = req.params;
+
+    validateObjectId(
+        playlistId,
+        "Playlist ID"
+    )
+    if(!playlistId){
+        throw new ApiError(
+            404,
+            "Playlist Id is required"
+        )
+    }
+
+    
+    // now we  write the code for the pagination to fetch the playlist video more efficently
+    
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    )
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 20,
+            1
+        ),
+        100
+    )
+    const skip = (page - 1) * limit;
+    
+    // now we convet the userId to the object id 
+    const playlistObjectId = new mongoose.Types.ObjectId(playlistId);
+    const userObjectId = new mongoose.Types.ObjectId(req.user._id);
+
+    const playlistResult = await Playlist.aggregate(
+        [
+            {// first aggregation pipeline
+                $match:{
+                    _id: playlistObjectId,
+                    isDeleted: false,
+                    // now we want that if the user is the owner then he can see the published or unpublised video or 
+                    $or:[
+                        {
+                            isPublic: true
+                        },
+                        {
+                            owner: userObjectId
+                        }
+                    ]
+                }
+            },
+            {
+                $lookup:{
+                    from:"videos",
+                    let:{
+                        videoIds:"$videos"
+                    },
+                    as: "videoList",
+                    pipeline:[
+                        {// we match the videos that are published and not deleted 
+                            $match:{
+                                isDeleted: false,
+                                isPublished: true
+                            }
+                        },
+                        {
+                            // now we lookup the owner the owner of each video 
+                            $lookup:{
+                                from:"videos",
+                                localField: "owner",
+                                foreignField:"_id",
+                                as:"owner",
+                                pipeline:[
+                                    {
+                                        $project:{
+                                            fullName: 1,
+                                            username: 1,
+                                            avatar: 1
+                                        }
+                                    },
+                                    {
+                                        $addFields:{
+                                            owner:{
+                                                $first:"$owner"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        $project:{
+                                            _id: 1,
+                                            videoFile: 1,
+                                            thumbnail: 1,
+                                            title: 1,
+                                            description: 1,
+                                            duration: 1,
+                                            viewCount: 1,
+                                            owner: 1,
+                                            createdAt: 1,
+                                            updatedAt: 1
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+
+                    ]
+                }
+            },
+            {
+                // now we use the facet to get paginated videos and total count in one go 
+                $facet:{
+                    videos:[
+                        {
+                            $unwind:"$videoList"
+                        },
+                        {
+                            $replaceRoot:{
+                                newRoot:"$videoList"
+                            }
+                        },
+                        {
+                            $skip: skip
+                        },
+                        {
+                            $limit: limit
+                        }
+                    ],
+                    totalCount:[
+                        {
+                            $project:{
+                                totalVideos:{
+                                    $size:"$videoList"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    );
+
+    if(!playlistResult || playlistResult.length === 0){
+        throw new ApiError(
+            404,
+            "Playlist not found or you don't have permission to access it"
+        )
+    }
+
+    // now we take the result from the aggragation ager result nahi toh ham empty object use karnege 
+    const result = playlistResult[0] || {
+        videos:[],
+        totalCount: []
+    }
+
+    // now we store ki hamre pass kitna videos hai 
+    const videos = result.videos || [];
+    const totalVideos = result.totalCount.length > 0 ?  result.totalCount[0].totalVideos : 0;
+    const totalPages = Math.ceil(totalVideos / limit);
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                videos,
+                page,
+                limit,
+                totalVideos,
+                totalPages,
+                hasNextPage : page < totalPages,
+                hasPreviousPage : page > 1
+            },
+            "Playlist Video Fetched SuccessFully"
+        )
+    )
+
+})
 
 
 export {
@@ -660,5 +840,5 @@ export {
     addVideoTOPlaylist,
     removeVideoFromPlaylist,
     getPlaylistById,
-    
+    getPlaylistVideos,
 }
