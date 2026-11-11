@@ -233,7 +233,7 @@ const addVideoTOPlaylist = asyncHandler(async(req,res)=>{
         )
     }
     // now we chekc the weater the video is already added or not 
-    if(!playlist.isVideoAlreadyAdded){
+    if(playlist.isVideoAlreadyAdded){
         throw new ApiError(
             409,
             "Video is already added to the playlist"
@@ -643,7 +643,7 @@ const getPlaylistById = asyncHandler(async(req,res)=>{
     const playlist = playlistResult[0];
 
     return res
-    .json(200)
+    .status(200)
     .json(
         new ApiResponse(
             200,
@@ -974,6 +974,147 @@ const getUserPlaylists = asyncHandler(async(req, res)=>{
     )
 
 })
+
+// now we make the getMyPlaylists controller 
+const getMyPlaylists = asyncHandler(async(req, res)=>{
+    // first of all we ge the playlist id from the req params
+    // const {userId} = req.params;
+
+    // validateObjectId(
+    //     userId,
+    //     "User ID"
+    // )
+    // if(!userId){
+    //     throw new ApiError(
+    //         404,
+    //         "User Id is required"
+    //     )
+    // }
+
+    
+    // now we  write the code for the pagination to fetch the playlist video more efficently
+    
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    )
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 20,
+            1
+        ),
+        100
+    )
+    const skip = (page - 1) * limit;
+    
+    // now we convet the userId to the object id 
+    // const userObjectId = new mongoose.Types.ObjectId(userId);
+    const userObjectId = new mongoose.Types.ObjectId(req.user._id);
+
+    const playlistResult = await Playlist.aggregate(
+        [
+            {// first aggregation pipeline
+                $match:{
+                    owner: userObjectId,
+                    isDeleted: false,
+                    // now we want that if the user is the owner then he can see the published or unpublised video or 
+                    $or: [
+                        { 
+                            isPublic: true 
+                        },
+                        { 
+                            owner: userObjectId 
+                        }
+                    ]
+                }
+            },
+            {
+                $sort:{
+                    createdAt: -1
+                }
+            },
+            {
+                $lookup:{
+                    from:"users",
+                    localField:"owner",
+                    foreignField: "_id",
+                    as: "owner",
+                    pipeline:[
+                        {
+                            $project:{
+                                fullName: 1,
+                                username: 1,
+                                avatar: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $addFields:{
+                    owner: {
+                        $first: "$owner"
+                    }
+                }
+            },
+            {
+                // now we use the facet to get paginated videos and total count in one go 
+                $facet:{
+                    playlists:[
+                        {
+                            $skip: skip
+                        },
+                        {
+                            $limit: limit
+                        }
+                    ],
+                    totalCount:[
+                        {
+                            $count: "totalPlaylists"
+                        }
+                    ]
+                }
+            }
+        ]
+    );
+
+    if(!playlistResult || playlistResult.length === 0){
+        throw new ApiError(
+            404,
+            "Playlist not found or you don't have permission to access it"
+        )
+    }
+
+    // now we take the result from the aggragation ager result nahi toh ham empty object use karnege 
+    const result = playlistResult[0] || {
+        playlists:[],
+        totalCount: []
+    }
+
+    // now we store ki hamre pass kitna videos hai 
+    const playlists = result.playlists || [];
+    const totalPlaylists = result.totalCount.length > 0 ?  result.totalCount[0].totalPlaylists : 0;
+    const totalPages = Math.ceil(totalPlaylists / limit);
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                playlists,
+                page,
+                limit,
+                totalPlaylists,
+                totalPages,
+                hasNextPage : page < totalPages,
+                hasPreviousPage : page > 1
+            },
+            "My Playlist Fetched SuccessFully"
+        )
+    )
+
+})
 export {
     createPlaylist,
     addVideoTOPlaylist,
@@ -981,5 +1122,5 @@ export {
     getPlaylistById,
     getPlaylistVideos,
     getUserPlaylists,
-    
+
 }
