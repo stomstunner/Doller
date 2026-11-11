@@ -6,6 +6,7 @@ import { Playlist } from "../models/playlist.models.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { validateObjectId } from "../utils/validateObjectId.js";
 import { uploadOnCloudinary , deleteFromCloudinary} from "../utils/cloudinary.js";
+import { Like } from "../models/like.models.js";
 
 // now we make the first controller for the playlist that is create playlist 
 const createPlaylist = asyncHandler(async(req,res)=>{
@@ -598,11 +599,11 @@ const getPlaylistById = asyncHandler(async(req,res)=>{
                     foreignField:"_id",
                     as: "owner",
                     pipeline:[
-                        $project:{
+                        {$project:{
                             fullName: 1,
                             username: 1,
                             avatar: 1   
-                        }
+                        }}
                     ]
                 }
             },
@@ -1227,6 +1228,59 @@ const updatePlaylist = asyncHandler(async(req, res)=>{
 })
 
 
+
+//  lets make the delete playlist controller 
+const deletePlaylist = asyncHandler(async(req, res)=>{
+    // first of all we take the data of the playlist what we want to delete 
+    const {playlistId} = req.params;
+    validateObjectId(
+        playlistId,
+        "Playlist ID"
+    )
+
+    if(!playlistId){
+        throw new ApiError(
+            404,
+            "Playlist id not found"
+        )
+    }
+
+    // now we check ki hamara paslylist databse me hai bhi ya nahi 
+    const playlist  = await Playlist.findOne({
+        _id: playlistId,
+        isDeleted : false,
+        owner: req.user._id
+    })
+
+    if(!playlist){
+        throw new ApiError(
+            404,
+            "Playlist not found or you are not allowed to delete this playlist"
+        )
+    }
+
+    // now we delete the all associated like from the playlist 
+    await Like.deleteMany(
+        {
+            playlist: playlist._id
+        }
+    )
+
+    // now we delete the playlist permanently
+    await Playlist.findByIdAndDelete(
+        playlist._id
+    )
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {},
+            "Playlist deleted SuccessFully"
+        )
+    )
+})
 export {
     createPlaylist,
     addVideoTOPlaylist,
@@ -1234,6 +1288,8 @@ export {
     getPlaylistById,
     getPlaylistVideos,
     getUserPlaylists,
+    getMyPlaylists,
     updatePlaylist,
-    
+    deletePlaylist,
+
 }
