@@ -1115,6 +1115,118 @@ const getMyPlaylists = asyncHandler(async(req, res)=>{
     )
 
 })
+
+
+// now we make the controller for update the playlist 
+const updatePlaylist = asyncHandler(async(req, res)=>{
+
+    // now we take the playlist id from params 
+    const {playlistId} = req.params;
+
+    validateObjectId(
+        playlistId,
+        "Playlist ID"
+    );
+    if(!playlistId){
+        throw new ApiError(
+            404,
+            "Playlist Id not Found"
+        )
+    }
+
+    // now we take the updation data from the playlist 
+    const {name, description, isPublic} = req.body;
+
+    const playlist = await Playlist.findOne({
+        _id: playlistId,
+        isDeleted: false,
+        owner: req.user._id
+    })
+
+    if(!playlist){
+        throw new ApiError(
+            404,
+            "Playlist not found or you are not allowed to update this Playlist"
+        )
+    }
+
+    // now we see that ki hamara name of the prlaylist jo hai kya woh sahi tarike se diaya gaya bhi hai ya nahi 
+    if(name !== undefined){
+
+        // now we ckeck ki ky hamare name  ko trim karne ke baad kuch bachta bhi ya nahi ager nahi bachta toh ham error denge ek 
+        if(!name?.trim()){
+            throw new ApiError(
+                400,
+                "Playlist name cannot be empty"
+            )
+        }
+        // now we see ki kahi hamara pahlylist ka nammm kahi uske given length se bara toh nhai hai  na 
+        if(name?.trim().length > 100){
+            throw new ApiError(
+                400,
+                "Playlist name cannot excedd the length of the 100"
+            )
+        }
+
+        // now we just simple save the playlist name to the user given name 
+        playlist.name = name.trim();
+    }
+
+    // same thing for the decription  also 
+    if(description !== undefined){
+        if(!description?.trim()){
+            throw new ApiError(
+                400,
+                "description cannot be empty"
+            )
+        }
+        if(!description?.trim().length > 500){
+            throw new ApiError(
+                400,
+                "description length cannot exceed the 500 character limit"
+            )
+        }
+
+        // after all checking we jsut save the  desription from the user to the playlist privious description
+
+        playlist.description = description.trim();
+    }
+
+    // now we cehk for the playlist is public or not 
+    if(isPublic !== undefined){
+        playlist.isPublic = isPublic === "true" || isPublic === true;
+        // ager isPublic user ne flase diay hai toh hamara pahlylist.ispublic me hamara false save hoga jisse hamar palylist autometiclaly private ho jayega 
+    }
+    await playlist.save();
+
+
+    // now we fetched the pupulated 
+    const updatedPlaylist = await Playlist.findById(playlistId)
+    .populate(
+        "owner",
+        "username fullName avatar"
+    )
+    .lean()
+
+    if(!updatedPlaylist){
+        throw new ApiError(
+            500,
+            "Failed to fetch the updated playlist result"
+        )
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiError(
+            200,
+            updatedPlaylist,
+            "Playlist Updated Successfully"
+        )
+    )
+})
+
+
 export {
     createPlaylist,
     addVideoTOPlaylist,
@@ -1122,5 +1234,6 @@ export {
     getPlaylistById,
     getPlaylistVideos,
     getUserPlaylists,
-
+    updatePlaylist,
+    
 }
