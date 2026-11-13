@@ -602,12 +602,22 @@ const getUserChannelProfile = asyncHandler(async(req, res) => {
             // 2nd pipeline 
             $lookup:{
                 // 1st parameter is to from = kaha se hame dekhna hai jo ki hai hamara suncription model kyuki hame channel ka pata karna hai  ki kitne subcriber hai so Subcription ka s chota and last me s lag jata hai kyuki ye mongoose ka defination hai 
-                from: "subcriptions",
+                from: "subscriptions",
                 localField: "_id",
                 foreignField: "channel",
                 // when we select the foriegn field channel then we get the subcriber and when we select the cubcriber then we get the channel 
                 // ab isko bolna kya hai 
-                as:"subscribers"
+                as:"subscribers",
+                // yaha pipeline lagayenge taaki sirf active video subscribers hi aaye
+                // isActive: true se unsubscribed log hat jayenge aur type: "video" se tweet followers mix nahi honge
+                pipeline: [
+                    {
+                        $match: {
+                            isActive: true,
+                            type: "video"
+                        }
+                    }
+                ]
             },    
         },
 
@@ -618,7 +628,16 @@ const getUserChannelProfile = asyncHandler(async(req, res) => {
                 from: "subscriptions",
                 localField:"_id",
                 foreignField:"subscriber",
-                as:"subscribedTo"
+                as:"subscribedTo",
+                // yaha bhi sirf active video subscriptions hi count karenge
+                pipeline: [
+                    {
+                        $match: {
+                            isActive: true,
+                            type: "video"
+                        }
+                    }
+                ]
             }
         },
         // now we want ki ham count kare ki hamre pass kitne suncribers hai aur hamare pass kitne channel hai jinko ki hamen subcribed kiya hai 
@@ -675,7 +694,11 @@ const getUserChannelProfile = asyncHandler(async(req, res) => {
     return res
     .status(200)
     .json(
-        new ApiResponse(200, channel[0], "User channel fetched successfully")
+        new ApiResponse(
+            200, 
+            channel[0], 
+            "User channel fetched successfully"
+        )
     )
 })
 
