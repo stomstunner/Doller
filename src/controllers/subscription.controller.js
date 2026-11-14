@@ -261,9 +261,185 @@ const toggleSubscriptionNotification = asyncHandler(async(req,res)=>{
 
 })
 
+// now we make the controller for the get creator all subscriber  list 
+const getUserChannelSubscribers = asyncHandler(async(req,res)=>{
+    const {channelId} = req.params;
+
+    const type = (req.query.type || req.body.type || "video").trim().toLowerCase();
+
+    validateObjectId(
+        channelId,
+        "Channel ID"
+    )
+
+    if(!channelId){
+        throw new ApiError(
+            404,
+            "Channel id is missing"
+        )
+    }
+
+    if(!allowedSubscriptionTypes.includes(type)){
+        throw new ApiError(
+            400,
+            "Only video and tweet subscription type is allowed"
+        )
+    }
+
+    // now we make the pagination for the getting the all subscribers 
+
+    const page = Math.max(
+        Number.parseInt(req.query.page) || 1,
+        1
+    )
+
+    const limit = Math.min(
+        Math.max(
+            Number.parseInt(req.query.limit) || 50,
+            1,
+        ),
+        100
+    )
+
+    const skip = (page - 1) * limit;
+
+
+    // optional search query for filtering subscriber username or fullName
+    const search = req.query.search?.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&") || "";
+
+    // now we check ki user ka channel user databse me exist karti bhi hai ya nahi 
+    const channelExists = await User.exists({
+        _id: channelId
+    })
+
+    if(!channelId){
+        throw new ApiError(
+            404,
+            "Channel not found"
+        )
+    }
+
+    // now we find the subscriber from the user table 
+    const subscribersAggregate = await Subscription.aggregate(
+        [
+            {
+                $match: {
+                    channel: new mongoose.Types.ObjectId(
+                        channelId
+                    ),
+                    type: type,
+                    isActive: true
+                }
+            },
+            {
+                // now we take the subscriber details from the User database 
+                $lookup:{
+                    from:"users",
+                    localField: "subscribers",
+                    foreignField:"_id",
+                    as: "subscriber",
+                    pipeline:[
+                        {
+                            $project:{
+                                username: 1,
+                                fullName: 1,
+                                avatar: 1
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                $addFields:{
+                    subscriber:{
+                        $first: "$subscriber"
+                    }
+                }
+            },
+            {
+                $match:{
+                    // ager ham search karenge toh username and fullname ke basic pe hai 
+                    subscriber:{
+                        $ne: null
+                    },
+                    ...(search && {
+                        $or:[
+                            {
+                                "subscriber.username" : {
+                                    $regex: search, 
+                                    $options: "i"
+                                }
+                            },
+                            {
+                                "subscriber.fullName" :{
+                                    $regex: search,
+                                    $options: "i"
+                                }
+                            }
+                        ]
+                    })
+                }
+            },
+            {
+                $facet:{
+                    results:[
+                        {
+                            $sort: {
+                                updatedAt: -1
+                            }
+                        },
+                        {
+                            $skip: skip
+                        },
+                        {
+                            $limit: limit
+                        },
+                        {
+                            $project:{
+                                _id: 1,
+                                subscriber: 1,
+                                type: 1,
+                                subscribedAt: "$updatedAt"
+                            }
+                        }
+                    ],
+                    totalCount:[
+                        {
+                            $count:"total"
+                        }
+                    ]
+                }
+            }
+        ]
+    )
+
+    const subscribers = subscribersAggregate[0]?.results || [];
+    const totalSubscribers = subscribersAggregate[0]?.totalCount[0]?.total || 0;
+
+
+    return res
+    .ststus(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                subscribers,
+                page,
+                limit,
+                totalSubscribers,
+                totalPages : Math.ceil(totalSubscribers / limit),
+                hasNextPage : page * limit < totalSubscribers
+            },
+            type === "video" ? "Subscribers fetched successfully" : "Follower Fetched Successfully"
+        )
+    )
+})
+
 export {
     toggleSubscription,
     toggleSubscriptionNotification,
+    getUserChannelSubscribers,
+    
 }
 
 
