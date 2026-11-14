@@ -171,9 +171,99 @@ const toggleSubscription = asyncHandler(async(req, res)=>{
     )
 })
 
+// now we make the controller for the toggle subscription notifications 
+const toggleSubscriptionNotification = asyncHandler(async(req,res)=>{
+
+    // first of all we take the channel id from the request 
+    const {channelId} = req.params;
+
+    // now we fetch the type 
+    const type = (req.query.type || req.body.type || "video").trim().toLowerCase();
+
+    // now we validate the channel id 
+    validateObjectId(
+        channelId,
+        "Channel ID"
+    );
+
+    if(!channelId){
+        throw new ApiError(
+            404,
+            "Channel id is missing"
+        )
+    }
+
+    // now we check ki hamara jo type hai woh allowedSubscriptionTypes me se hi ho 
+    if(!allowedSubscriptionTypes.includes(type)){
+        throw new ApiError(
+            400,
+            "The subscription type should be only video or tweet"
+        )
+    }
+
+    // now we see ki kahi user khud ke channel ko hi toh notifiaction  nahi nan bhej rha hai 
+    if(channelId === req.user._id.toString()){
+        throw new ApiError(
+            400,
+            "You cannot toggle notifications to your own  channel "
+        )
+    }
+
+    // now we check ki target channel databse me exist bhi karta ho
+    const channelExists = await User.exists(
+        {
+            _id: channelId
+        }
+    )
+
+    if(!channelExists){
+        throw new ApiError(
+            404,
+            "Channel not found"
+        )
+    }
+
+    const subscription = await Subscription.findOne(
+        {
+            subscriber: req.user._id,
+            channel: channelId,
+            type: type,
+            isActive: true,
+        }
+    )
+
+    if(!subscription){
+        throw new ApiError(
+            404,
+            type === "video" ? "You must have to subscribe to this channel first" : "You must have follow this user first"
+        )
+    }
+
+    // ab isNotification ko flip (toggle) kar denge
+    // true hai toh false (bell off) ho jayega, aur false hai toh true (bell on) ho jayega
+
+    subscription.isNotification = !subscription.isNotification;
+
+    await subscription.save();
+
+    return res
+    .status(200)
+    .json(
+        new ApiError(
+            200,
+            {
+                isNotification : subscription.isNotification,
+                type
+            },
+            subscription.isNotification ? "Notification turned on successfully" : "Notification turned off successfully"
+        )
+    )
+
+})
+
 export {
     toggleSubscription,
-    
+    toggleSubscriptionNotification,
 }
 
 
